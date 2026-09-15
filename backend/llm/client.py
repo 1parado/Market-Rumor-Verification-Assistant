@@ -16,6 +16,16 @@ from schemas import LLMConfig
 from llm.base import ChatResponse, LLMError
 
 
+def _validate(llm_config: LLMConfig) -> None:
+    """调用前校验配置，避免 httpx 因空 Key 拼出非法头（b'Bearer '）而抛裸异常。"""
+    if not (llm_config.api_key or "").strip():
+        raise LLMError(400, "API Key 为空：请先在设置中填写 API Key")
+    if not (llm_config.base_url or "").strip():
+        raise LLMError(400, "Base URL 为空：请先在设置中填写 Base URL")
+    if not (llm_config.model or "").strip():
+        raise LLMError(400, "模型为空：请先在设置中选择模型")
+
+
 def chat(
     messages: list[dict],
     llm_config: LLMConfig,
@@ -25,6 +35,7 @@ def chat(
     """统一 LLM 调用，按 protocol 分发。"""
     from llm import protocols  # 延迟导入，避免与 protocols 的导入环
 
+    _validate(llm_config)
     if llm_config.protocol == "openai_chat":
         return protocols.openai_chat(messages, llm_config, tools, tool_choice)
     if llm_config.protocol == "openai_responses":
@@ -38,4 +49,5 @@ def list_models(llm_config: LLMConfig) -> list[str]:
     """拉取可用模型列表，转发到 protocols。"""
     from llm import protocols  # 延迟导入，避免与 protocols 的导入环
 
+    _validate(llm_config)
     return protocols.list_models(llm_config)

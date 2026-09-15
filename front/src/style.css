@@ -32,6 +32,41 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
 .field input,.field select{padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px}
 .field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
 .field.span2.actions{flex-direction:row;align-items:center;gap:10px}
+.model-row{display:flex;align-items:center;gap:8px}
+.model-row select,.model-row input{flex:1;min-width:0}
+.model-row .ghost{margin-left:0;white-space:nowrap}
+/* 已保存配置 chips */
+.saved-row{gap:6px}
+.saved-list{display:flex;flex-wrap:wrap;gap:6px}
+.saved-chip{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:16px;overflow:hidden;font-size:12px}
+.saved-chip.active{border-color:var(--accent)}
+.saved-use{background:none;border:none;padding:4px 6px 4px 10px;color:var(--text-2);cursor:pointer;font-size:12px}
+.saved-chip.active .saved-use{color:var(--accent)}
+.saved-use:hover{color:var(--accent)}
+.saved-del{background:none;border:none;padding:4px 8px 4px 4px;color:var(--text-3);cursor:pointer;font-size:11px}
+.saved-del:hover{color:var(--danger)}
+/* 历史运行列表 */
+.run-list{display:flex;flex-direction:column;gap:8px;max-height:56vh;overflow-y:auto}
+.run-item{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;transition:border-color .15s}
+.run-item:hover{border-color:var(--accent)}
+.run-title{font-size:13px;color:var(--text);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.run-meta{display:flex;align-items:center;gap:8px}
+.tag.st-done{background:rgba(34,160,107,.14);color:var(--ok)}
+.tag.st-error{background:rgba(229,72,77,.14);color:var(--danger)}
+.tag.st-running{background:rgba(59,130,246,.14);color:var(--accent)}
+.vbadge.sm{padding:2px 9px;font-size:11.5px}
+/* 会话 */
+.chat-log{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;margin-bottom:10px}
+.chat-msg{display:flex;flex-direction:column;gap:3px}
+.chat-msg.user{align-items:flex-end}
+.chat-msg.assistant{align-items:flex-start}
+.chat-role{font-size:10.5px;color:var(--text-3)}
+.chat-bubble{max-width:82%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.chat-msg.user .chat-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.assistant .chat-bubble{background:var(--border-soft);color:var(--text);border-bottom-left-radius:4px}
+.chat-form{display:flex;gap:8px}
+.chat-form input{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px}
+.chat-form input:focus{outline:none;border-color:var(--accent)}
 .primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer}
 .primary:hover{opacity:.9}
 .primary:disabled{opacity:.5;cursor:not-allowed}

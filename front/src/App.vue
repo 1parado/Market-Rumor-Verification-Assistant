@@ -1,14 +1,16 @@
 <script setup>
 import { ref, computed } from "vue";
-import { api, loadCfg, saveCfg, streamCheck } from "./api.js";
+import { api, loadCfg, saveCfg, streamCheck, getRun, sendChat } from "./api.js";
 import SettingsModal from "./components/SettingsModal.vue";
 import ImModal from "./components/ImModal.vue";
+import HistoryModal from "./components/HistoryModal.vue";
 
 /* ---------- 全局状态 ---------- */
-const cfg = ref(loadCfg());
+const cfg = ref(loadCfg());          // 唯一配置源：弹窗直接改它，不再有副本互相覆盖
 const view = ref("home");            // home | work
 const showSettings = ref(false);
 const showIm = ref(false);
+const showHistory = ref(false);
 
 const rumorText = ref("");
 const samples = ref([]);
@@ -16,6 +18,7 @@ const procLines = ref([]);           // { cls, text }
 const procStatus = ref("");
 const result = ref(null);
 const docMd = ref("");
+const runId = ref(null);             // 当次/回放的运行 id（有值才会话可追问）
 
 const V_MAP = { credible: ["v-credible", "可信"], questionable: ["v-questionable", "存疑"], unverifiable: ["v-unverifiable", "无法核实"] };
 const T_MAP = { supports: ["supports", "支持"], refutes: ["refutes", "反驳"], unverifiable: ["unverifiable", "无法核实"] };
@@ -37,6 +40,25 @@ const verifications = computed(() =>
     return { cls, label, text: c ? c.text : "断言" + v.claim_id, reasoning: v.reasoning, source: v.source, source_ref: v.source_ref };
   })
 );
+
+/* ---------- 会话（用户 ↔ Agent） ---------- */
+const chatMsgs = ref([]);
+const chatInput = ref("");
+const chatSending = ref(false);
+
+async function onSendChat(){
+  const text = chatInput.value.trim();
+  if(!text || !runId.value) return;
+  chatInput.value = "";
+  chatMsgs.value.push({ role: "user", content: text });
+  chatSending.value = true;
+  try{
+    const r = await sendChat(cfg.value, runId.value, text);
+    chatMsgs.value.push({ role: "assistant", content: r.reply || "（空回复）" });
+  }catch(e){
+    chatMsgs.value.push({ role: "assistant", content: "✕ " + e.message });
+  }finally{ chatSending.value = false; }
+}
 
 /* ---------- 通用 ---------- */
 function toast(msg){
@@ -74,12 +96,14 @@ const checking = ref(false);
 function onStart(){
   const text = rumorText.value.trim();
   if(!text){ toast("请输入传闻"); return; }
-  saveCfg(cfg.value);
+  saveCfg({ protocol: cfg.value.protocol, apiBase: cfg.value.apiBase, apiKey: cfg.value.apiKey, model: cfg.value.model });
   view.value = "work";
   procLines.value = [];
   procStatus.value = "核查中…";
   result.value = null;
   docMd.value = "";
+  runId.value = null;
+  chatMsgs.value = [];
   checking.value = true;
   streamCheck(cfg.value, text, handleEvent)
     .then(() => { procStatus.value = "✓ 完成"; })
@@ -91,7 +115,7 @@ function onStart(){
 }
 
 function handleEvent(event, data){
-  if(event === "start") pushLine("start", `开始核查：${data.rumor_text || ""}`);
+  if(event === "start"){ runId.value = data.run_id || null; pushLine("start", `开始核查：${data.rumor_text || ""}`); }
   else if(event === "node") renderNode(data.node, data.output);
   else if(event === "done"){ result.value = data.result; docMd.value = buildDoc(data.result); }
   else if(event === "error") pushLine("error", `✕ ${data.detail || data.status || "错误"}`);
@@ -144,6 +168,28 @@ function onNewCheck(){
   rumorText.value = "";
   view.value = "home";
 }
+
+/* ---------- 历史回放 ---------- */
+async function onOpenRun(id){
+  try{
+    const run = await getRun(cfg.value, id);
+    showHistory.value = false;
+    rumorText.value = run.rumor_text;
+    runId.value = run.id;
+    view.value = "work";
+    procLines.value = [];
+    (run.events || []).forEach(e => {
+      if(e.event === "start") pushLine("start", `开始核查：${e.payload.rumor_text || ""}`);
+      else if(e.event === "node") renderNode(e.payload.node, e.payload.output);
+      else if(e.event === "error") pushLine("error", `✕ ${e.payload.detail || "错误"}`);
+    });
+    result.value = run.result;
+    docMd.value = run.report_md || buildDoc(run.result);
+    chatMsgs.value = (run.messages || []).map(m => ({ role: m.role, content: m.content }));
+    procStatus.value = run.status === "done" ? "✓ 完成（历史回放）" : run.status === "error" ? "✕ 失败（历史回放）" : "核查中…";
+    toast(`已载入历史记录 #${run.id}`);
+  }catch(e){ toast("载入失败：" + e.message); }
+}
 </script>
 
 <template>
@@ -151,6 +197,9 @@ function onNewCheck(){
     <div class="tb-left">
       <button class="icon" title="IM 接入（飞书）" @click="showIm = true">
         <svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button class="icon" title="历史核查" @click="showHistory = true">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </button>
     </div>
     <div class="tb-center">核真</div>
@@ -191,7 +240,7 @@ function onNewCheck(){
     <!-- 工作视图 -->
     <section v-else>
       <div class="card">
-        <div class="card-head"><h2>传闻</h2><button class="ghost" @click="onNewCheck">＋ 新建核查</button></div>
+        <div class="card-head"><h2>传闻</h2><span v-if="runId" class="sub">#{{ runId }}</span><span class="sp"></span><button class="ghost" @click="onNewCheck">＋ 新建核查</button></div>
         <p class="rumor-echo">{{ rumorText }}</p>
       </div>
 
@@ -220,11 +269,27 @@ function onNewCheck(){
         <div class="card-head"><h2>核查报告</h2><button class="ghost" @click="onCopyMd">复制 Markdown</button></div>
         <pre class="doc">{{ docMd }}</pre>
       </div>
+
+      <div v-if="runId" class="card">
+        <div class="card-head"><h2>会话</h2><span class="sub">就本次核查向 Agent 追问，记录已持久化</span></div>
+        <div class="chat-log">
+          <div v-if="!chatMsgs.length" class="sub">还没有消息，例如可以问：「主要依据是哪些数据？」</div>
+          <div v-for="(m, i) in chatMsgs" :key="i" class="chat-msg" :class="m.role">
+            <div class="chat-role">{{ m.role === "user" ? "你" : "Agent" }}</div>
+            <div class="chat-bubble">{{ m.content }}</div>
+          </div>
+        </div>
+        <form class="chat-form" @submit.prevent="onSendChat">
+          <input v-model="chatInput" placeholder="输入追问…" autocomplete="off" :disabled="chatSending" />
+          <button class="primary" type="submit" :disabled="chatSending || !chatInput.trim()">{{ chatSending ? "发送中…" : "发送" }}</button>
+        </form>
+      </div>
     </section>
   </main>
 
-  <SettingsModal :open="showSettings" @close="showSettings = false" @toast="toast" />
+  <SettingsModal :open="showSettings" :cfg="cfg" @close="showSettings = false" @toast="toast" />
   <ImModal :open="showIm" @close="showIm = false" />
+  <HistoryModal :open="showHistory" :cfg="cfg" @close="showHistory = false" @open-run="onOpenRun" @toast="toast" />
 
   <div id="toast"><span id="toastMsg"></span></div>
 </template>

@@ -19,6 +19,11 @@ __pycache__/
 .pytest_cache/
 frontend/output/
 *.log
+# ===== SQLite 数据库（含 API Key / 用户数据，绝不入库）=====
+*.db
+*.sqlite
+*.sqlite3
+backend/veritas.db
 
 # ===== 虚拟环境 =====
 venv/

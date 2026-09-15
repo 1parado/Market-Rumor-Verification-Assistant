@@ -34,6 +34,22 @@ export async function api(cfg, path, opts = {}){
   return r.json();
 }
 
+/* ===== 持久化 API（后端 SQLite）===== */
+const JSON_OPTS = (body) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/** 已保存的模型配置列表 */
+export const listConfigs = (cfg) => api(cfg, "/api/configs").then(r => r.configs || []);
+/** 按名称保存/覆盖模型配置 */
+export const saveConfig = (cfg, name) => api(cfg, "/api/configs", JSON_OPTS({ name, llm: llmPayload(cfg) }));
+export const deleteConfig = (cfg, id) => api(cfg, `/api/configs/${id}`, { method: "DELETE" });
+
+/** 核查运行历史 */
+export const listRuns = (cfg) => api(cfg, "/api/runs").then(r => r.runs || []);
+export const getRun = (cfg, id) => api(cfg, `/api/runs/${id}`).then(r => r.run);
+export const deleteRun = (cfg, id) => api(cfg, `/api/runs/${id}`, { method: "DELETE" });
+/** 运行内会话：向 Agent 追问 */
+export const sendChat = (cfg, runId, message) => api(cfg, `/api/runs/${runId}/chat`, JSON_OPTS({ message, llm: llmPayload(cfg) }));
+
 /** SSE 流式核查：onEvent(event, data) */
 export async function streamCheck(cfg, text, onEvent){
   const r = await fetch((cfg.baseUrl || "").replace(/\/$/, "") + "/api/rumor/check/stream", {
