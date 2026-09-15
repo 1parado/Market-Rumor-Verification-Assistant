@@ -75,3 +75,73 @@ textarea#rumorText:focus{outline:none;border-color:var(--accent)}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;font-size:12px;opacity:0;pointer-events:none;transition:.18s;z-index:50}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:680px){.form{grid-template-columns:1fr}.field.span2{grid-column:span 1}.ep-input{width:140px}}
+
+/* ============================================================
+   首页改版：居中「准备开始核查?」+ 胶囊输入 + 设置/IM 弹窗
+   ============================================================ */
+
+/* ---- 顶栏：左功能入口 / 中标题 / 右工具 ---- */
+.topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:10px 16px}
+.tb-left{display:flex;justify-content:flex-start;gap:8px}
+.tb-center{text-align:center;font-weight:700;font-size:14.5px;letter-spacing:.05em}
+.tb-right{display:flex;justify-content:flex-end;gap:8px}
+
+/* ---- 首页居中布局 ---- */
+.home{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;text-align:center}
+.home-title{font-size:clamp(26px,4.5vw,38px);font-weight:800;letter-spacing:-.01em;margin:0 0 34px}
+.pill-form{
+  display:flex;align-items:center;gap:8px;width:min(560px,92vw);
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;
+  padding:8px 8px 8px 18px;box-shadow:0 2px 12px rgba(24,39,67,.06);
+  transition:border-color .18s ease,box-shadow .18s ease;
+}
+.pill-form:focus-within{border-color:var(--accent);box-shadow:0 4px 18px rgba(47,107,237,.12)}
+.pill-ico{font-size:14px;opacity:.6}
+#rumorText{flex:1;min-width:0;border:0;background:none;outline:0;font:inherit;font-size:14px;color:var(--text);padding:8px 0}
+#rumorText::placeholder{color:var(--text-3)}
+.pill-act{border:0;background:none;font-size:15px;color:var(--text-3);cursor:pointer;padding:6px;border-radius:50%;transition:color .15s}
+.pill-act:hover{color:var(--text)}
+.pill-go{
+  width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;flex:none;
+  background:var(--accent);color:#fff;font-size:15px;display:grid;place-items:center;
+  transition:filter .15s ease,transform .15s ease;
+}
+.pill-go:hover{filter:brightness(1.08);transform:translateX(1px)}
+.home-link{margin-top:26px;border:0;background:none;color:var(--text-2);font-size:13px;cursor:pointer;padding:6px 10px;border-radius:8px}
+.home-link:hover{color:var(--accent);background:var(--accent-soft)}
+.home-hint{margin-top:14px;font-size:11.5px;color:var(--text-3)}
+.linklike{border:0;background:none;color:var(--accent);cursor:pointer;font:inherit;font-size:inherit;padding:0}
+.linklike:hover{text-decoration:underline}
+.home .samples{margin-top:14px;justify-content:center;max-width:560px}
+
+/* ---- 工作视图 ---- */
+.rumor-echo{margin:0;font-size:13px;color:var(--text-2);background:var(--border-soft);border-radius:var(--radius-sm);padding:9px 12px;line-height:1.7}
+
+/* ---- 弹窗 ---- */
+.modal-mask{position:fixed;inset:0;background:rgba(15,17,21,.42);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px 16px;z-index:40;overflow-y:auto}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;width:min(560px,94vw);box-shadow:0 16px 48px rgba(15,17,21,.18);animation:modalin .18s ease}
+@keyframes modalin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.modal .card-head{margin-bottom:14px}
+.modal[hidden]{display:none}
+
+/* ---- IM 弹窗 ---- */
+.im-body{font-size:13px;color:var(--text-2)}
+.im-body ul{margin:8px 0 12px 18px}
+.im-body li{margin:4px 0}
+.im-body li b{color:var(--text);font-weight:600}
+.im-badge{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;border-radius:8px;padding:4px 12px;margin-bottom:10px}
+
+@media(max-width:680px){
+  .home{min-height:calc(100vh - 90px)}
+  .pill-form{padding-left:14px}
+}
+
+/* ---- hidden 属性兜底：防止 display:flex/grid 类覆盖 UA 的 display:none ---- */
+[hidden]{display:none!important}
+
+/* ---- 线性 SVG 图标（继承文字色，替代 emoji） ---- */
+.ico{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+.icon .ico{width:14px;height:14px}
+.icon{display:inline-flex;align-items:center;justify-content:center}
+.pill-ico .ico{opacity:.55}
+.pill-go .ico{width:16px;height:16px}

@@ -31,49 +31,63 @@ async function api(path, opts){
   return r.json();
 }
 
-/* 连通测试 */
+/* ---------- 首页 / 工作视图切换 ---------- */
+function showHome(){
+  $("homeSec").hidden = false;
+  $("workSec").hidden = true;
+  $("rumorText").focus();
+}
+function showWork(text){
+  $("homeSec").hidden = true;
+  $("workSec").hidden = false;
+  $("rumorEcho").textContent = text;
+  $("procCard").hidden = false; $("resultCard").hidden = true; $("docCard").hidden = true;
+  $("procLog").innerHTML = ""; $("procStatus").textContent = "核查中…";
+}
+$("newCheck").onclick = () => { $("rumorText").value = ""; showHome(); };
+
+/* ---------- 连通测试（设置弹窗内） ---------- */
 $("testBtn").onclick = async () => {
   saveCfg(currentCfg());
   const st = $("testStatus"); st.className = "status"; st.textContent = "测试中…";
   $("testBtn").disabled = true;
   try{
     const r = await api("/api/llm/test", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({llm:llmPayload()})});
-    if(r.ok){ st.className = "status ok"; st.textContent = `✓ ${r.model} · ${r.reply||""}`; $("checkBtn").disabled = false; toast("连通成功，可开始核查"); }
+    if(r.ok){ st.className = "status ok"; st.textContent = `✓ ${r.model} · ${r.reply||""}`; toast("连通成功，可开始核查"); }
     else{ st.className = "status fail"; st.textContent = `✕ ${r.error||"失败"} ${r.detail||""}`; }
   }catch(e){ st.className = "status fail"; st.textContent = "✕ " + e.message; }
   finally{ $("testBtn").disabled = false; }
 };
 
-/* 载入样例 */
+/* ---------- 载入样例 ---------- */
 $("loadRumors").onclick = async () => {
   try{
     const r = await api("/api/rumors");
     const box = $("samples"); box.innerHTML = "";
     r.rumors.forEach(x => {
       const b = document.createElement("button"); b.className = "sample"; b.textContent = `#${x.id}`;
-      b.title = x.text; b.onclick = () => { $("rumorText").value = x.text; };
+      b.title = x.text; b.onclick = () => { $("rumorText").value = x.text; $("rumorText").focus(); };
       box.appendChild(b);
     });
-    toast("已载入 " + r.rumors.length + " 条样例");
+    toast("已载入 " + r.rumors.length + " 条样例，点击编号填入");
   }catch(e){ toast("载入失败：" + e.message); }
 };
 
-/* 核查（流式） */
-$("checkBtn").onclick = async () => {
+/* ---------- 核查（流式）：首页提交 → 切到工作视图 ---------- */
+$("homeForm").onsubmit = async (e) => {
+  e.preventDefault();
   const text = $("rumorText").value.trim();
   if(!text){ toast("请输入传闻"); return; }
   saveCfg(currentCfg());
-  $("procCard").hidden = false; $("resultCard").hidden = true; $("docCard").hidden = true;
-  $("procLog").innerHTML = ""; $("procStatus").textContent = "核查中…";
-  $("checkBtn").disabled = true; $("checkStatus").className = "status"; $("checkStatus").textContent = "";
+  showWork(text);
+  $("homeStatus").className = "status"; $("homeStatus").textContent = "";
   try{
     await streamCheck(text);
     $("procStatus").textContent = "✓ 完成";
-    $("checkStatus").className = "status ok"; $("checkStatus").textContent = "✓ 核查完成";
-  }catch(e){
+  }catch(err){
     $("procStatus").textContent = "✕ 失败";
-    $("checkStatus").className = "status fail"; $("checkStatus").textContent = "✕ " + e.message;
-  }finally{ $("checkBtn").disabled = false; }
+    appendProc("error", "✕ " + err.message);
+  }
 };
 
 async function streamCheck(text){
@@ -194,5 +208,29 @@ function toast(msg){ $("toastMsg").textContent = msg; $("toast").classList.add("
 
 $("themeBtn").onclick = () => { const d = document.documentElement.getAttribute("data-theme") === "dark"; document.documentElement.setAttribute("data-theme", d ? "light" : "dark"); };
 
+/* ---------- 粘贴剪贴板 ---------- */
+$("pasteBtn").onclick = async () => {
+  try{
+    const t = await navigator.clipboard.readText();
+    if(t.trim()){ $("rumorText").value = t.trim(); $("rumorText").focus(); toast("已粘贴剪贴板内容"); }
+    else toast("剪贴板为空");
+  }catch{ toast("无法读取剪贴板，请手动粘贴"); $("rumorText").focus(); }
+};
+
+/* ---------- 设置 / IM 弹窗 ---------- */
+function openModal(id){ $(id).hidden = false; }
+function closeModal(id){ $(id).hidden = true; }
+$("settingsBtn").onclick = () => openModal("settingsModal");
+$("openSettings2").onclick = () => openModal("settingsModal");
+$("closeSettings").onclick = () => closeModal("settingsModal");
+$("imBtn").onclick = () => openModal("imModal");
+$("closeIm").onclick = () => closeModal("imModal");
+document.querySelectorAll(".modal-mask").forEach(m =>
+  m.addEventListener("click", (e) => { if(e.target === m) m.hidden = true; })
+);
+document.addEventListener("keydown", (e) => {
+  if(e.key === "Escape") document.querySelectorAll(".modal-mask:not([hidden])").forEach(m => m.hidden = true);
+});
+
 applyCfg();
-$("checkBtn").disabled = true;
+$("rumorText").focus();
