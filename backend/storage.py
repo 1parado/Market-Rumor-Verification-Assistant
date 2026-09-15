@@ -80,6 +80,10 @@ def _conn() -> sqlite3.Connection:
 def init_db() -> None:
     with _lock, closing(_conn()) as conn:
         conn.executescript(_SCHEMA)
+        # 轻量迁移：旧库补列
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
+        if "error" not in cols:
+            conn.execute("ALTER TABLE runs ADD COLUMN error TEXT")
         conn.commit()
 
 
@@ -140,13 +144,13 @@ def add_event(run_id: int, event: str, payload: dict[str, Any]) -> None:
         conn.commit()
 
 
-def finish_run(run_id: int, status: str, result: dict | None = None, report_md: str = "") -> None:
-    """运行结束：写入结论/结果/报告。"""
+def finish_run(run_id: int, status: str, result: dict | None = None, report_md: str = "", error: str | None = None) -> None:
+    """运行结束：写入结论/结果/报告，失败时写入失败原因。"""
     with _lock, closing(_conn()) as conn:
         conn.execute(
             """
             UPDATE runs SET status=?, finished_at=?, final_verdict=?, basis=?, data_date=?,
-                            result_json=?, report_md=?
+                            result_json=?, report_md=?, error=?
             WHERE id=?
             """,
             (
@@ -156,16 +160,34 @@ def finish_run(run_id: int, status: str, result: dict | None = None, report_md: 
                 (result or {}).get("data_date"),
                 json.dumps(result, ensure_ascii=False) if result else None,
                 report_md or None,
+                error,
                 run_id,
             ),
         )
         conn.commit()
 
 
+def fail_stale_runs() -> int:
+    """启动时清理：把上次进程中断遗留的 running 运行标记为 error。
+
+    单进程 MVP 下，任何跨启动仍为 running 的记录必然是服务中断所致
+    （事件流停在最后一个已落库节点，结果缺失），不可能仍在执行。
+    """
+    with _lock, closing(_conn()) as conn:
+        cur = conn.execute(
+            """UPDATE runs SET status='error', finished_at=?, error=?,
+                   basis=COALESCE(basis, '服务中断：核查未完成，结论缺失')
+               WHERE status='running'""",
+            (_now(), "服务中断：进程在核查完成前退出"),
+        )
+        conn.commit()
+        return cur.rowcount
+
+
 def list_runs(limit: int = 50) -> list[dict]:
     with closing(_conn()) as conn:
         rows = conn.execute(
-            """SELECT id, title, rumor_text, status, final_verdict, data_date, created_at, finished_at
+            """SELECT id, title, rumor_text, status, final_verdict, error, data_date, created_at, finished_at
                FROM runs ORDER BY id DESC LIMIT ?""",
             (limit,),
         ).fetchall()

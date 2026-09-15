@@ -52,6 +52,7 @@ async function onDel(r){
         <div v-for="r in runs" :key="r.id" class="run-item" role="button" tabindex="0"
              @click="emit('open-run', r.id)" @keydown.enter="emit('open-run', r.id)" @keydown.space.prevent="emit('open-run', r.id)">
           <div class="run-title">{{ r.title }}</div>
+          <div v-if="r.error" class="run-err" :title="r.error">✕ {{ r.error }}</div>
           <div class="run-meta">
             <span v-if="r.final_verdict" class="vbadge sm" :class="V_CLS[r.final_verdict] || 'v-unverifiable'">● {{ V_MAP[r.final_verdict] || "无法核实" }}</span>
             <span class="tag" :class="'st-' + r.status">{{ r.status === "done" ? "完成" : r.status === "error" ? "失败" : "进行中" }}</span>

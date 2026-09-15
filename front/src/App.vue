@@ -93,6 +93,8 @@ function pickSample(s){ rumorText.value = s.text; }
 /* ---------- 核查流程 ---------- */
 const checking = ref(false);
 
+const STEP_LABEL = { planner: "规划中…", evidence: "取证中…", judge: "裁决中…" };
+
 function onStart(){
   const text = rumorText.value.trim();
   if(!text){ toast("请输入传闻"); return; }
@@ -108,7 +110,7 @@ function onStart(){
   streamCheck(cfg.value, text, handleEvent)
     .then(() => { procStatus.value = "✓ 完成"; })
     .catch(e => {
-      procStatus.value = "✕ 失败";
+      procStatus.value = "✕ 失败：" + (e.message || "连接中断");
       pushLine("error", "✕ " + e.message);
     })
     .finally(() => { checking.value = false; });
@@ -116,9 +118,18 @@ function onStart(){
 
 function handleEvent(event, data){
   if(event === "start"){ runId.value = data.run_id || null; pushLine("start", `开始核查：${data.rumor_text || ""}`); }
+  else if(event === "step"){
+    const label = STEP_LABEL[data.node] || "处理中…";
+    procStatus.value = label;
+    pushLine("step", "⏳ " + label);
+  }
   else if(event === "node") renderNode(data.node, data.output);
   else if(event === "done"){ result.value = data.result; docMd.value = buildDoc(data.result); }
-  else if(event === "error") pushLine("error", `✕ ${data.detail || data.status || "错误"}`);
+  else if(event === "error"){
+    const reason = data.detail || (data.status ? `LLM 调用失败（status=${data.status}）` : "未知错误");
+    procStatus.value = "✕ 失败：" + reason;
+    pushLine("error", "✕ " + reason);
+  }
 }
 
 function renderNode(node, out){
@@ -180,13 +191,16 @@ async function onOpenRun(id){
     procLines.value = [];
     (run.events || []).forEach(e => {
       if(e.event === "start") pushLine("start", `开始核查：${e.payload.rumor_text || ""}`);
+      else if(e.event === "step") pushLine("step", "⏳ " + (STEP_LABEL[e.payload.node] || "处理中…"));
       else if(e.event === "node") renderNode(e.payload.node, e.payload.output);
-      else if(e.event === "error") pushLine("error", `✕ ${e.payload.detail || "错误"}`);
+      else if(e.event === "error") pushLine("error", "✕ " + (e.payload.detail || "错误"));
     });
     result.value = run.result;
     docMd.value = run.report_md || buildDoc(run.result);
     chatMsgs.value = (run.messages || []).map(m => ({ role: m.role, content: m.content }));
-    procStatus.value = run.status === "done" ? "✓ 完成（历史回放）" : run.status === "error" ? "✕ 失败（历史回放）" : "核查中…";
+    procStatus.value = run.status === "done" ? "✓ 完成（历史回放）"
+      : run.status === "error" ? "✕ 失败（历史回放）" + (run.error ? "：" + run.error : "")
+      : "核查中…";
     toast(`已载入历史记录 #${run.id}`);
   }catch(e){ toast("载入失败：" + e.message); }
 }

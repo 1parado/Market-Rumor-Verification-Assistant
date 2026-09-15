@@ -54,6 +54,9 @@ class RunChatRequest(BaseModel):
 @app.on_event("startup")
 def on_startup() -> None:
     storage.init_db()
+    stale = storage.fail_stale_runs()
+    if stale:
+        print(f"[startup] 已将 {stale} 条中断遗留的 running 记录标记为失败")
 
 
 @app.get("/api/health")
@@ -192,11 +195,21 @@ def check_rumor_stream(req: RumorCheckRequest) -> StreamingResponse:
     """
     def gen():
         run_id = storage.create_run(req.rumor_text)
+        # 直线流水线节点顺序：节点 A 完成即乐观推送节点 B「进行中」，
+        # 让前端在 LLM 调用期间也能看到实时进度（否则十几秒无任何输出）。
+        next_step = {"planner": "evidence", "evidence": "judge"}
+
+        def push_step(node: str):
+            payload = {"node": node}
+            yield _sse("step", payload)
+            storage.add_event(run_id, "step", payload)
+
         try:
             graph = build_graph()
             final: RumorCheckResult | None = None
             yield _sse("start", {"rumor_text": req.rumor_text, "run_id": run_id})
             storage.add_event(run_id, "start", {"rumor_text": req.rumor_text})
+            yield from push_step("planner")
             for chunk in graph.stream(
                 {"rumor_text": req.rumor_text, "llm_config": req.llm},
                 stream_mode="updates",
@@ -205,6 +218,8 @@ def check_rumor_stream(req: RumorCheckRequest) -> StreamingResponse:
                     payload = {"node": node, "output": _serialize(update)}
                     yield _sse("node", payload)
                     storage.add_event(run_id, "node", payload)
+                    if node in next_step:
+                        yield from push_step(next_step[node])
                     res = update.get("result")
                     if isinstance(res, RumorCheckResult):
                         final = res
@@ -214,17 +229,18 @@ def check_rumor_stream(req: RumorCheckRequest) -> StreamingResponse:
                 serialized = _serialize(final)
                 storage.finish_run(run_id, "done", serialized, report_md=_result_md(serialized))
             else:
-                storage.finish_run(run_id, "error", None)
+                storage.finish_run(run_id, "error", error="流水线未产出结果")
         except LLMError as exc:
+            detail = f"LLM 调用失败（status={exc.status}）：{exc.detail}"
             payload = {"status": exc.status, "detail": exc.detail}
             yield _sse("error", payload)
             storage.add_event(run_id, "error", payload)
-            storage.finish_run(run_id, "error", None)
+            storage.finish_run(run_id, "error", error=detail)
         except Exception as exc:  # noqa: BLE001
             payload = {"detail": str(exc)}
             yield _sse("error", payload)
             storage.add_event(run_id, "error", payload)
-            storage.finish_run(run_id, "error", None)
+            storage.finish_run(run_id, "error", error=f"核查异常：{exc}")
 
     return StreamingResponse(
         gen(),

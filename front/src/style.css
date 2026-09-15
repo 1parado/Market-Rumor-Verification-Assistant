@@ -50,6 +50,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
 .run-item{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;transition:border-color .15s}
 .run-item:hover{border-color:var(--accent)}
 .run-title{font-size:13px;color:var(--text);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.run-err{font-size:11px;color:var(--danger);margin:-2px 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .run-meta{display:flex;align-items:center;gap:8px}
 .tag.st-done{background:rgba(34,160,107,.14);color:var(--ok)}
 .tag.st-error{background:rgba(229,72,77,.14);color:var(--danger)}
@@ -86,6 +87,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
 .prow.k-ev{color:var(--text)}
 .prow.k-judge{color:var(--text)}
 .prow.k-error{color:var(--danger)}
+.prow.k-step{color:var(--text-3)}
 .prow.k-plan-sub,.prow.k-ev-sub{color:var(--text-3);padding-left:0}
 /* 结果 */
 .final{display:flex;align-items:center;gap:10px;margin-bottom:10px}
