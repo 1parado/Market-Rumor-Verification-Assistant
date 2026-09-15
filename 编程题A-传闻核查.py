@@ -15,6 +15,7 @@
 
 用你自己的大模型 API（OpenAI 兼容），填好顶部三行就能跑。
 跑 `python3 编程题A-传闻核查.py` 验证。
+跑 `python3 test_传闻核查.py -v` 执行单元测试（mock LLM，不联网、不消耗 token）。
 
 提交：代码 + README（怎么跑/设计思路/已知缺陷）+ AI 协作过程记录。
 提交前删掉你的 API key。
@@ -22,35 +23,65 @@
 """
 import json
 import os
+import sys
 import time
+
 import requests
 
 BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")   # 换成你用的 base_url
 API_KEY  = os.environ.get("LLM_API_KEY", "<你自己的 key>")
 MODEL    = os.environ.get("LLM_MODEL", "gpt-4o")
 
+_REQUEST_TIMEOUT = 120          # 单次 HTTP 超时（秒）
+_RETRY_DELAYS = (5, 10, 15, 20)  # 429/5xx/网络异常 的退避序列；共尝试 len+1 次
+
+# 判定枚举（模型输出的内部约定）
+_VALID_FINAL = {"credible", "questionable", "unverifiable"}
+_VALID_VERDICT = {"supports", "refutes", "unverifiable"}
+
+_FALLBACK_BASIS = "模型未返回结构化核查结果"
+_NO_DATA = "（无任何数据）"
+_NO_CLAIMS = "（未能分解出断言）"
+
+
+class LLMError(RuntimeError):
+    """LLM 调用最终失败（网络异常 / 限流重试耗尽 / 响应格式非法）。"""
+
 
 def call_llm(messages, tools=None, tool_choice=None):
-    """带 429/5xx 退避重试的最小封装。"""
+    """最小 LLM 封装：429 / 5xx / 网络异常按退避序列重试，其余 4xx 立即抛错。
+
+    返回 choices[0].message 字典；响应体缺 choices 等格式异常抛 LLMError。
+    """
     payload = {"model": MODEL, "messages": messages}
     if tools:
         payload["tools"] = tools
     if tool_choice:
         payload["tool_choice"] = tool_choice
-    for attempt in range(4):
-        r = requests.post(
-            f"{BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-            json=payload,
-            timeout=120,
-        )
-        if r.status_code == 429 or r.status_code >= 500:
-            time.sleep(5 * (attempt + 1))   # 退避 5/10/15/20s
+
+    last_error = ""
+    for attempt in range(len(_RETRY_DELAYS) + 1):
+        if attempt:
+            time.sleep(_RETRY_DELAYS[attempt - 1])
+        try:
+            r = requests.post(
+                f"{BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+                json=payload,
+                timeout=_REQUEST_TIMEOUT,
+            )
+        except requests.RequestException as exc:   # 超时 / 连接失败等，可重试
+            last_error = f"网络异常: {exc}"
             continue
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]
+        if r.status_code == 429 or r.status_code >= 500:
+            last_error = f"HTTP {r.status_code}"
+            continue
+        r.raise_for_status()                        # 其余 4xx：配置类错误，重试无意义
+        try:
+            return r.json()["choices"][0]["message"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise LLMError(f"响应格式异常（缺 choices/message）: {exc}; body[:200]={r.text[:200]!r}") from exc
+    raise LLMError(f"重试 {len(_RETRY_DELAYS) + 1} 次后仍失败：{last_error}")
 
 
 # ===== 工具（已实现，别改数据）=====
@@ -105,7 +136,7 @@ RUMORS = [
 ]
 
 
-# ===== 你要补的部分 =====
+# ===== 核查流水线 =====
 def check_rumor(rumor_text):
     """核查 rumor_text：返回结构化结果——判断（可信/存疑/无法核实）+ 依据 + 数据来源。
     涉及多家公司要逐家查证；数据里没有的信息明说无法核实，不编造。
@@ -114,7 +145,14 @@ def check_rumor(rumor_text):
       1. 规划：LLM 工具调用 → 识别公司（限候选清单，防编造）+ 分解原子断言
       2. 取证：纯工具调用（不调 LLM）→ 对每家公司聚合行情/公告/资讯快照
       3. 裁决：快照注入 prompt → LLM 工具调用逐条判定 + 汇总三分类结论
+
+    任一阶段失败都不抛异常：降级为 unverifiable 的结构化结果。
     """
+    rumor_text = (rumor_text or "").strip()
+    if not rumor_text:
+        return {"传闻": "", "判断": "unverifiable",
+                "依据": "传闻内容为空，无从核查", "逐条核查": [], "数据来源": []}
+
     # -- 1. 规划：识别公司 + 分解断言（只能从候选清单选，禁止编造公司） --
     candidates = "\n".join(f"- {n}({q['code']})" for n, q in _QUOTES.items())
     plan = _force_tool(
@@ -128,26 +166,15 @@ def check_rumor(rumor_text):
             {"role": "user", "content": f"传闻：{rumor_text}"},
         ],
         _PLAN_TOOL, "plan_rumor",
-    ) or {"companies": [], "claims": []}
+    ) or {}
+
+    companies = _normalize_companies(plan)
+    claims = _normalize_claims(plan)
 
     # -- 2. 取证：涉及几家查几家，纯工具调用聚合数据快照 --
-    snapshot = []
-    for c in plan.get("companies", []):
-        name = c["name"]
-        q = get_quote(name)
-        if q:
-            snapshot.append(f"【{name}】行情：代码={q['code']} 价格={q['price']} 涨跌幅={q['change_pct']}% 日期={q['date']}")
-        for a in get_announcements(name):
-            snapshot.append(f"【{name}】公告：{a}")
-        for n in get_news(name):
-            snapshot.append(f"【{name}】资讯：{n}")
-    snapshot_text = "\n".join(snapshot) or "（无任何数据）"
+    snapshot_text = _build_snapshot(companies)
 
     # -- 3. 裁决：快照是唯一事实来源，查不到就标 unverifiable --
-    claims_text = "\n".join(
-        f"- [{c['id']}]({c['type']}, 公司={c['company']}): {c['text']}"
-        for c in plan.get("claims", [])
-    ) or "（未能分解出断言）"
     verdict = _force_tool(
         [
             {"role": "system", "content": (
@@ -160,60 +187,123 @@ def check_rumor(rumor_text):
                 "/ unverifiable（相关数据缺失）。\n"
                 "5. reasoning 必须引用快照中的具体字段值或原文片段；source 与 source_ref 指明出处。"
             )},
-            {"role": "user", "content": f"传闻：{rumor_text}\n\n待核查断言：\n{claims_text}\n\n数据快照：\n{snapshot_text}"},
+            {"role": "user", "content": f"传闻：{rumor_text}\n\n待核查断言：\n{_format_claims(claims)}\n\n数据快照：\n{snapshot_text}"},
         ],
         _VERIFY_TOOL, "verify_rumor",
-    ) or {"final_verdict": "unverifiable", "basis": "模型未返回结构化核查结果", "verifications": []}
+    ) or {"final_verdict": "unverifiable", "basis": _FALLBACK_BASIS, "verifications": []}
 
     # -- 4. 结构化输出：判断 + 依据 + 逐条核查（含可复核出处）--
-    claim_text = {c["id"]: c["text"] for c in plan.get("claims", [])}
-    final = _derive_final(verdict)
+    return _build_result(rumor_text, claims, verdict)
+
+
+def _normalize_companies(plan):
+    """从规划结果提取公司名：去空、去重（保序），容忍缺失/非字典条目。"""
+    names, seen = [], set()
+    for c in plan.get("companies") or []:
+        if not isinstance(c, dict):
+            continue
+        name = (c.get("name") or "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
+def _normalize_claims(plan):
+    """从规划结果提取断言：过滤非字典/缺 id 的条目。"""
+    return [c for c in plan.get("claims") or [] if isinstance(c, dict) and c.get("id")]
+
+
+def _build_snapshot(companies):
+    """对每家公司聚合行情/公告/资讯为文本快照（取证阶段，不调 LLM）。"""
+    lines = []
+    for name in companies:
+        q = get_quote(name)
+        if q:
+            lines.append(
+                f"【{name}】行情：代码={q.get('code')} 价格={q.get('price')} "
+                f"涨跌幅={q.get('change_pct')}% 日期={q.get('date')}"
+            )
+        lines.extend(f"【{name}】公告：{a}" for a in get_announcements(name))
+        lines.extend(f"【{name}】资讯：{n}" for n in get_news(name))
+    return "\n".join(lines) or _NO_DATA
+
+
+def _format_claims(claims):
+    lines = [
+        f"- [{c.get('id')}]({c.get('type', 'unknown')}, 公司={c.get('company', '未知')}): {c.get('text', '')}"
+        for c in claims
+    ]
+    return "\n".join(lines) or _NO_CLAIMS
+
+
+def _build_result(rumor_text, claims, verdict):
+    """把裁决结果整理为最终结构化输出；逐条/出处/数据来源均做防御式解析。"""
+    claim_text = {c["id"]: c.get("text", "") for c in claims}
+    verifications = [v for v in verdict.get("verifications") or [] if isinstance(v, dict)]
     return {
         "传闻": rumor_text,
-        "判断": {"credible": "credible", "questionable": "questionable", "unverifiable": "unverifiable"}.get(final, final),
+        "判断": _derive_final(verdict),
         "依据": verdict.get("basis", ""),
         "逐条核查": [
             {
                 "断言": claim_text.get(v.get("claim_id"), v.get("claim_id")),
-                "判定": {"supports": "支持", "refutes": "反驳", "unverifiable": "无法核实"}
-                .get(v.get("verdict", "unverifiable"), "无法核实"),
+                "判定": "支持" if v.get("verdict") == "supports"
+                        else "反驳" if v.get("verdict") == "refutes"
+                        else "无法核实",
                 "理由": v.get("reasoning", ""),
-                "出处": f"{v.get('source', '')} {v.get('source_ref', '')}".strip(),
+                "出处": " ".join(x for x in (v.get("source"), v.get("source_ref")) if x),
             }
-            for v in verdict.get("verifications", []) if isinstance(v, dict)
+            for v in verifications
         ],
-        "数据来源": sorted({
-            v["source_ref"] for v in verdict.get("verifications", [])
-            if isinstance(v, dict) and v.get("source_ref")
-        }),
+        "数据来源": sorted({v.get("source_ref") for v in verifications if v.get("source_ref")}),
     }
 
 
 def _derive_final(verdict):
-    """final_verdict 枚举兜底：模型返回缺失/不规范时，从逐条判定推导。"""
+    """final_verdict 枚举兜底：模型返回缺失/不规范时，从逐条判定推导。
+
+    规则：有 refute → 至少存疑；全部 supports → 可信；
+    只有 supports + unverifiable（或全 unverifiable / 为空）→ 证据不足，无法核实。
+    """
+    verdict = verdict or {}
     final = verdict.get("final_verdict")
-    if final in {"credible", "questionable", "unverifiable"}:
+    if final in _VALID_FINAL:
         return final
-    vs = verdict.get("verifications", [])
-    if not vs:
+    vals = {v.get("verdict") for v in verdict.get("verifications") or [] if isinstance(v, dict)}
+    if not vals:
         return "unverifiable"
-    vals = {v.get("verdict") for v in vs if isinstance(v, dict)}
     if "refutes" in vals:
         return "questionable"          # 有反驳：至少存疑
     if vals == {"supports"}:
         return "credible"              # 全部支持
-    return "unverifiable"              # 只有支持+无法核实：整体证据不足
+    return "unverifiable"              # 支持与无法核实混杂：整体证据不足
 
 
 def _force_tool(messages, tool, name):
-    """强制 LLM 调用指定工具并解析参数；未返回结构化结果时返回 None（上层兜底）。"""
-    msg = call_llm(messages, tools=[tool], tool_choice={"type": "function", "function": {"name": name}})
+    """强制 LLM 调用指定工具并解析参数；任何失败返回 None（上层兜底，不中断核查）。"""
+    try:
+        msg = call_llm(messages, tools=[tool],
+                       tool_choice={"type": "function", "function": {"name": name}})
+    except LLMError as exc:
+        print(f"[warn] 工具调用 {name} 失败：{exc}", file=sys.stderr)
+        return None
     for tc in msg.get("tool_calls") or []:
-        if tc["function"]["name"] == name:
-            try:
-                return json.loads(tc["function"]["arguments"])
-            except (ValueError, TypeError):
-                return None
+        if not isinstance(tc, dict):
+            continue
+        fn = tc.get("function") or {}
+        if fn.get("name") != name:
+            continue
+        try:
+            parsed = json.loads(fn.get("arguments") or "")
+        except (ValueError, TypeError):
+            print(f"[warn] 工具 {name} 返回的 arguments 不是合法 JSON", file=sys.stderr)
+            return None
+        if not isinstance(parsed, dict):
+            print(f"[warn] 工具 {name} 返回的 arguments 不是对象", file=sys.stderr)
+            return None
+        return parsed
+    print(f"[warn] 工具调用 {name} 未返回匹配的结构化结果", file=sys.stderr)
     return None
 
 
@@ -272,7 +362,14 @@ _VERIFY_TOOL = {
 }
 
 
-if __name__ == "__main__":
+def main():
     for i, r in enumerate(RUMORS, 1):
         print(f"--- 传闻 {i}：{r} ---")
-        print(json.dumps(check_rumor(r), ensure_ascii=False, indent=2), "\n")
+        try:
+            print(json.dumps(check_rumor(r), ensure_ascii=False, indent=2), "\n")
+        except Exception as exc:   # 单条失败不拖垮整批
+            print(f"[error] 传闻 {i} 核查异常：{exc}\n", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

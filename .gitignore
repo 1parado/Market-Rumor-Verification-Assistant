@@ -11,6 +11,7 @@ config.private.*
 # ===== WorkBuddy 本地数据（会话记忆/内部笔记，不对外）=====
 .workbuddy/
 .zcode/
+AI协作记录/
 
 # ===== 运行产物 / 临时输出 =====
 __pycache__/
