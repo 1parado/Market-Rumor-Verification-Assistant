@@ -250,3 +250,31 @@ def _parse_anthropic(resp: dict) -> ChatResponse:
         elif block.get("type") == "tool_use":
             tool_calls.append(ToolCall(id=block.get("id", ""), name=block["name"], arguments=block.get("input", {})))
     return ChatResponse(content="\n".join(content_parts) or None, tool_calls=tool_calls, raw=resp)
+
+
+# ===== 拉取模型列表 =====
+def _get(url: str, api_key: str, anthropic: bool = False) -> dict:
+    headers = {"Content-Type": "application/json"}
+    if anthropic:
+        headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+    else:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        r = httpx.get(url, headers=headers, timeout=_TIMEOUT)
+    except httpx.HTTPError as exc:
+        raise LLMError(0, f"network error: {exc}") from exc
+    if r.status_code >= 400:
+        raise LLMError(r.status_code, _trim(r.text))
+    return r.json()
+
+
+def list_models(llm_config) -> list[str]:
+    """拉取可用模型列表，三协议适配。"""
+    if llm_config.protocol == "anthropic":
+        base = llm_config.base_url.rstrip("/")
+        url = base + "/models" if base.endswith("/v1") else base + "/v1/models"
+        resp = _get(url, llm_config.api_key, anthropic=True)
+    else:
+        resp = _get(_join_url(llm_config.base_url, "/models"), llm_config.api_key)
+    return [m["id"] for m in resp.get("data", []) if m.get("id")]

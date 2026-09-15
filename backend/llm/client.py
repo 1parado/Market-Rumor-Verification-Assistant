@@ -32,3 +32,10 @@ def chat(
     if llm_config.protocol == "anthropic":
         return protocols.anthropic(messages, llm_config, tools, tool_choice)
     raise LLMError(400, f"unknown protocol: {llm_config.protocol}")
+
+
+def list_models(llm_config: LLMConfig) -> list[str]:
+    """拉取可用模型列表，转发到 protocols。"""
+    from llm import protocols  # 延迟导入，避免与 protocols 的导入环
+
+    return protocols.list_models(llm_config)

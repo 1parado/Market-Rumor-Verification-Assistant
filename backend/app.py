@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from data.local_data import RUMORS
-from llm import LLMError, chat
+from llm import LLMError, chat, list_models
 from pipeline import build_graph, run_check
 from schemas import LLMConfig, LLMTestResult, RumorCheckResult
 
@@ -58,6 +58,16 @@ def test_llm(req: LLMTestRequest) -> LLMTestResult:
     except LLMError as exc:
         return LLMTestResult(ok=False, error=exc.detail, detail=f"status={exc.status}")
     return LLMTestResult(ok=True, model=req.llm.model, reply=resp.content)
+
+
+@app.post("/api/llm/models")
+def list_models_api(req: LLMTestRequest) -> dict:
+    """拉取可用模型列表（GET {base_url}/models，三协议适配）。"""
+    try:
+        models = list_models(req.llm)
+    except LLMError as exc:
+        return {"ok": False, "error": exc.detail, "detail": f"status={exc.status}"}
+    return {"ok": True, "models": models}
 
 
 @app.post("/api/rumor/check")
