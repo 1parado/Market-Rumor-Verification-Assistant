@@ -28,3 +28,5 @@ class ChatResponse:
     content: str | None
     tool_calls: list[ToolCall] = field(default_factory=list)
     raw: dict | None = None
+    prompt_tokens: int | None = None    # API usage 优先，tiktoken 估算兜底
+    completion_tokens: int | None = None

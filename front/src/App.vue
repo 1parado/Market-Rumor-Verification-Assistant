@@ -1,9 +1,18 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { api, loadCfg, saveCfg, streamCheck, getRun, sendChat } from "./api.js";
 import SettingsModal from "./components/SettingsModal.vue";
 import ImModal from "./components/ImModal.vue";
 import HistoryModal from "./components/HistoryModal.vue";
+
+/* Markdown 渲染（LLM 输出经 DOMPurify 消毒后注入） */
+marked.setOptions({ breaks: true, gfm: true });
+function renderMd(text){
+  if(!text) return "";
+  return DOMPurify.sanitize(marked.parse(text));
+}
 
 /* ---------- 全局状态 ---------- */
 const cfg = ref(loadCfg());          // 唯一配置源：弹窗直接改它，不再有副本互相覆盖
@@ -37,27 +46,79 @@ const verifications = computed(() =>
   (result.value?.verifications || []).map(v => {
     const [cls, label] = T_MAP[v.verdict] || T_MAP.unverifiable;
     const c = claimMap.value[v.claim_id];
-    return { cls, label, text: c ? c.text : "断言" + v.claim_id, reasoning: v.reasoning, source: v.source, source_ref: v.source_ref };
+    const conf = v.confidence ?? ({ supports: 85, refutes: 80, unverifiable: 30 }[v.verdict] ?? 50);
+    return { cls, label, text: c ? c.text : "断言" + v.claim_id, reasoning: v.reasoning, source: v.source, source_ref: v.source_ref, conf };
   })
 );
 
-/* ---------- 会话（用户 ↔ Agent） ---------- */
+/* 置信度：judge 输出优先；缺失时按各断言判定估算 */
+const confidence = computed(() => {
+  if(result.value?.confidence != null) return { value: result.value.confidence, estimated: false };
+  if(!verifications.value.length) return null;
+  const est = Math.round(verifications.value.reduce((s, v) => s + v.conf, 0) / verifications.value.length);
+  return { value: est, estimated: true };
+});
+/* 环形图：r=30, 周长≈188.5 */
+const CONF_C = 2 * Math.PI * 30;
+const confDash = computed(() => {
+  if(!confidence.value) return {};
+  const len = (Math.max(0, Math.min(100, confidence.value.value)) / 100) * CONF_C;
+  return { len, rest: CONF_C - len };
+});
+const confColor = computed(() => {
+  if(!confidence.value) return "var(--text-3)";
+  const v = confidence.value.value;
+  return v >= 75 ? "#16a06a" : v >= 45 ? "#f08c00" : "#e5484d";
+});
+
+/* 断言判定统计 → 底部状态条 */
+const verdictStats = computed(() => {
+  const vs = result.value?.verifications || [];
+  if(!vs.length) return null;
+  const c = { supports: 0, refutes: 0, unverifiable: 0 };
+  vs.forEach(v => { c[v.verdict] = (c[v.verdict] || 0) + 1; });
+  return c;
+});
+
+/* token 用量：done 事件 / 历史记录 */
+const usage = ref(null);
+const fmtNum = (n) => (n == null ? "-" : n.toLocaleString("en-US"));
+
+/* ---------- 会话（用户 ↔ Agent） ----------
+   按 runId 隔离：chatCache 保存每个会话的消息，切换核查/回放历史互不串线 */
+const chatCache = {};
 const chatMsgs = ref([]);
 const chatInput = ref("");
 const chatSending = ref(false);
 
+function loadChat(id){
+  chatMsgs.value = chatCache[id] || [];
+}
+function cacheChat(){
+  if(runId.value != null) chatCache[runId.value] = chatMsgs.value;
+}
+
 async function onSendChat(){
   const text = chatInput.value.trim();
   if(!text || !runId.value) return;
+  const rid = runId.value;                  // 锁定当前会话，发送期间切换视图也不串
   chatInput.value = "";
   chatMsgs.value.push({ role: "user", content: text });
   chatSending.value = true;
+  let u = null;
   try{
-    const r = await sendChat(cfg.value, runId.value, text);
-    chatMsgs.value.push({ role: "assistant", content: r.reply || "（空回复）" });
-  }catch(e){
-    chatMsgs.value.push({ role: "assistant", content: "✕ " + e.message });
-  }finally{ chatSending.value = false; }
+    const r = await sendChat(cfg.value, rid, text);
+    u = r.usage || null;
+    if(runId.value === rid) chatMsgs.value.push({ role: "assistant", content: r.reply || "（空回复）" });
+  }  catch(e){
+    if(runId.value === rid) chatMsgs.value.push({ role: "assistant", content: "✕ " + e.message });
+  }finally{
+    chatSending.value = false;
+    if(runId.value === rid){
+      chatCache[rid] = chatMsgs.value;
+      if(u) toast(`本次追问消耗 ${fmtNum(u.total_tokens)} tokens（入 ${fmtNum(u.prompt_tokens)} / 出 ${fmtNum(u.completion_tokens)}）`);
+    }
+  }
 }
 
 /* ---------- 通用 ---------- */
@@ -99,12 +160,14 @@ function onStart(){
   const text = rumorText.value.trim();
   if(!text){ toast("请输入传闻"); return; }
   saveCfg({ protocol: cfg.value.protocol, apiBase: cfg.value.apiBase, apiKey: cfg.value.apiKey, model: cfg.value.model });
+  cacheChat();
   view.value = "work";
   procLines.value = [];
   procStatus.value = "核查中…";
   result.value = null;
   docMd.value = "";
   runId.value = null;
+  usage.value = null;
   chatMsgs.value = [];
   checking.value = true;
   streamCheck(cfg.value, text, handleEvent)
@@ -117,14 +180,18 @@ function onStart(){
 }
 
 function handleEvent(event, data){
-  if(event === "start"){ runId.value = data.run_id || null; pushLine("start", `开始核查：${data.rumor_text || ""}`); }
+  if(event === "start"){
+    runId.value = data.run_id || null;
+    if(runId.value != null) loadChat(runId.value);
+    pushLine("start", `开始核查：${data.rumor_text || ""}`);
+  }
   else if(event === "step"){
     const label = STEP_LABEL[data.node] || "处理中…";
     procStatus.value = label;
     pushLine("step", "⏳ " + label);
   }
   else if(event === "node") renderNode(data.node, data.output);
-  else if(event === "done"){ result.value = data.result; docMd.value = buildDoc(data.result); }
+  else if(event === "done"){ result.value = data.result; docMd.value = buildDoc(data.result); usage.value = data.usage || null; }
   else if(event === "error"){
     const reason = data.detail || (data.status ? `LLM 调用失败（status=${data.status}）` : "未知错误");
     procStatus.value = "✕ 失败：" + reason;
@@ -176,13 +243,22 @@ function onCopyMd(){
 }
 
 function onNewCheck(){
+  cacheChat();
   rumorText.value = "";
   view.value = "home";
 }
 
 /* ---------- 历史回放 ---------- */
+
+/* URL ?run=N 直接回放（可分享/刷新恢复） */
+onMounted(() => {
+  const n = parseInt(new URLSearchParams(location.search).get("run"), 10);
+  if(n) onOpenRun(n);
+});
+
 async function onOpenRun(id){
   try{
+    cacheChat();
     const run = await getRun(cfg.value, id);
     showHistory.value = false;
     rumorText.value = run.rumor_text;
@@ -197,7 +273,12 @@ async function onOpenRun(id){
     });
     result.value = run.result;
     docMd.value = run.report_md || buildDoc(run.result);
+    usage.value = (run.prompt_tokens || run.completion_tokens)
+      ? { prompt_tokens: run.prompt_tokens || 0, completion_tokens: run.completion_tokens || 0,
+          total_tokens: (run.prompt_tokens || 0) + (run.completion_tokens || 0) }
+      : null;
     chatMsgs.value = (run.messages || []).map(m => ({ role: m.role, content: m.content }));
+    chatCache[run.id] = chatMsgs.value;
     procStatus.value = run.status === "done" ? "✓ 完成（历史回放）"
       : run.status === "error" ? "✕ 失败（历史回放）" + (run.error ? "：" + run.error : "")
       : "核查中…";
@@ -266,14 +347,60 @@ async function onOpenRun(id){
       </div>
 
       <div v-if="result" class="card">
-        <div class="card-head"><h2>核查结果</h2><span class="sub">{{ result.data_date ? "数据日期 " + result.data_date : "" }}</span></div>
-        <div class="final"><span class="vbadge" :class="finalVerdict.cls">● {{ finalVerdict.label }}</span></div>
-        <p class="basis">{{ result.basis }}</p>
+        <div class="card-head">
+          <h2>核查结果</h2>
+          <span class="sub">{{ result.data_date ? "数据日期 " + result.data_date : "" }}</span>
+          <span class="sp"></span>
+          <span v-if="usage" class="tok-chip" title="本次核查全部 LLM 调用消耗（含规划/取证/裁决）">
+            ⚡ {{ fmtNum(usage.total_tokens) }} tokens<span v-if="usage.calls"> · {{ usage.calls }} 次调用</span>（入 {{ fmtNum(usage.prompt_tokens) }} / 出 {{ fmtNum(usage.completion_tokens) }}）
+          </span>
+        </div>
+        <div class="final">
+          <span class="vbadge" :class="finalVerdict.cls">
+            <svg v-if="finalVerdict.cls === 'v-questionable'" class="ico vico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span v-else class="vdot"></span>
+            {{ finalVerdict.label }}
+          </span>
+          <div v-if="confidence" class="conf-donut" :title="confidence.estimated ? '置信度（按断言判定估算）' : '置信度（模型评估）'">
+            <svg viewBox="0 0 72 72" width="72" height="72">
+              <defs>
+                <linearGradient id="confGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" :stop-color="confColor"/>
+                  <stop offset="100%" :stop-color="confColor" stop-opacity=".45"/>
+                </linearGradient>
+              </defs>
+              <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border-soft)" stroke-width="5.5"/>
+              <circle cx="36" cy="36" r="30" fill="none" stroke="url(#confGrad)" stroke-width="5.5" stroke-linecap="round"
+                      :stroke-dasharray="`${confDash.len} ${confDash.rest}`" transform="rotate(-90 36 36)"/>
+              <text x="36" y="41" text-anchor="middle" class="conf-num">{{ confidence.value }}<tspan class="conf-pct">%</tspan></text>
+            </svg>
+            <span class="conf-cap">置信度{{ confidence.estimated ? "（估）" : "" }}</span>
+          </div>
+        </div>
+        <p class="basis md" v-html="renderMd(result.basis)"></p>
         <div v-if="verifications.length" class="verts">
           <div v-for="(v, i) in verifications" :key="i" class="vert">
-            <div class="vhead"><span class="tag" :class="v.cls">{{ v.label }}</span><span class="vt">{{ v.text }}</span></div>
-            <div class="vreason">{{ v.reasoning }}</div>
+            <div class="vhead"><span class="tag" :class="v.cls">{{ v.label }}</span><span class="vt">{{ v.text }}</span>
+              <span class="sp"></span>
+              <span class="conf-pill" :title="'置信度 ' + v.conf + '/100'">
+                <span class="conf-bar"><span class="conf-fill" :style="{ width: v.conf + '%', background: v.conf >= 75 ? 'var(--ok)' : v.conf >= 45 ? 'var(--warn)' : 'var(--danger)' }"></span></span>
+                <span class="conf-val">{{ v.conf }}%</span>
+              </span>
+            </div>
+            <div class="vreason md" v-html="renderMd(v.reasoning)"></div>
             <div class="vref">{{ v.source ? "来源：" + v.source + (v.source_ref ? " · " + v.source_ref : "") : "" }}</div>
+          </div>
+        </div>
+        <div v-if="verdictStats" class="verdict-strip" :class="{ warn: verdictStats.refutes > 0 }">
+          <div class="vs-bar">
+            <span class="vs-seg ok" :style="{ flex: verdictStats.supports }" v-show="verdictStats.supports"></span>
+            <span class="vs-seg bad" :style="{ flex: verdictStats.refutes }" v-show="verdictStats.refutes"></span>
+            <span class="vs-seg unk" :style="{ flex: verdictStats.unverifiable }" v-show="verdictStats.unverifiable"></span>
+          </div>
+          <div class="vs-legend">
+            <span class="ok"><i></i>支持 {{ verdictStats.supports }}</span>
+            <span class="bad"><i></i>反驳 {{ verdictStats.refutes }}</span>
+            <span class="unk"><i></i>无法核实 {{ verdictStats.unverifiable }}</span>
           </div>
         </div>
         <div v-if="result.sources && result.sources.length" class="src"><b>引用来源：</b>{{ result.sources.join(" · ") }}</div>
@@ -281,16 +408,17 @@ async function onOpenRun(id){
 
       <div v-if="docMd" class="card">
         <div class="card-head"><h2>核查报告</h2><button class="ghost" @click="onCopyMd">复制 Markdown</button></div>
-        <pre class="doc">{{ docMd }}</pre>
+        <div class="doc md" v-html="renderMd(docMd)"></div>
       </div>
 
       <div v-if="runId" class="card">
-        <div class="card-head"><h2>会话</h2><span class="sub">就本次核查向 Agent 追问，记录已持久化</span></div>
+        <div class="card-head"><h2>会话</h2><span class="sub">#{{ runId }} · 与 Agent 追问本次核查，记录已持久化</span></div>
         <div class="chat-log">
           <div v-if="!chatMsgs.length" class="sub">还没有消息，例如可以问：「主要依据是哪些数据？」</div>
-          <div v-for="(m, i) in chatMsgs" :key="i" class="chat-msg" :class="m.role">
+          <div v-for="(m, i) in chatMsgs" :key="m.role + '-' + i" class="chat-msg" :class="m.role">
             <div class="chat-role">{{ m.role === "user" ? "你" : "Agent" }}</div>
-            <div class="chat-bubble">{{ m.content }}</div>
+            <div v-if="m.role === 'user'" class="chat-bubble">{{ m.content }}</div>
+            <div v-else class="chat-bubble md" v-html="renderMd(m.content)"></div>
           </div>
         </div>
         <form class="chat-form" @submit.prevent="onSendChat">

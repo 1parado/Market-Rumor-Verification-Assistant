@@ -56,6 +56,8 @@ async function onDel(r){
           <div class="run-meta">
             <span v-if="r.final_verdict" class="vbadge sm" :class="V_CLS[r.final_verdict] || 'v-unverifiable'">● {{ V_MAP[r.final_verdict] || "无法核实" }}</span>
             <span class="tag" :class="'st-' + r.status">{{ r.status === "done" ? "完成" : r.status === "error" ? "失败" : "进行中" }}</span>
+            <span v-if="(r.prompt_tokens || 0) + (r.completion_tokens || 0) > 0" class="sub"
+                  :title="`输入 ${r.prompt_tokens || 0} / 输出 ${r.completion_tokens || 0} tokens`">⚡ {{ (r.prompt_tokens || 0) + (r.completion_tokens || 0) }} tok</span>
             <span class="sub">{{ fmt(r.created_at) }}</span>
             <span class="sp"></span>
             <button class="saved-del" title="删除记录" @click.stop="onDel(r)">✕</button>

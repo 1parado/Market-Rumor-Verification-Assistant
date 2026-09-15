@@ -84,6 +84,10 @@ def init_db() -> None:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
         if "error" not in cols:
             conn.execute("ALTER TABLE runs ADD COLUMN error TEXT")
+        if "prompt_tokens" not in cols:
+            conn.execute("ALTER TABLE runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0")
+        if "completion_tokens" not in cols:
+            conn.execute("ALTER TABLE runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0")
         conn.commit()
 
 
@@ -144,13 +148,22 @@ def add_event(run_id: int, event: str, payload: dict[str, Any]) -> None:
         conn.commit()
 
 
-def finish_run(run_id: int, status: str, result: dict | None = None, report_md: str = "", error: str | None = None) -> None:
-    """运行结束：写入结论/结果/报告，失败时写入失败原因。"""
+def finish_run(
+    run_id: int,
+    status: str,
+    result: dict | None = None,
+    report_md: str = "",
+    error: str | None = None,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+) -> None:
+    """运行结束：写入结论/结果/报告，失败时写入失败原因，附带 token 用量。"""
     with _lock, closing(_conn()) as conn:
         conn.execute(
             """
             UPDATE runs SET status=?, finished_at=?, final_verdict=?, basis=?, data_date=?,
-                            result_json=?, report_md=?, error=?
+                            result_json=?, report_md=?, error=?,
+                            prompt_tokens=MAX(prompt_tokens, ?), completion_tokens=MAX(completion_tokens, ?)
             WHERE id=?
             """,
             (
@@ -161,8 +174,19 @@ def finish_run(run_id: int, status: str, result: dict | None = None, report_md: 
                 json.dumps(result, ensure_ascii=False) if result else None,
                 report_md or None,
                 error,
+                prompt_tokens, completion_tokens,
                 run_id,
             ),
+        )
+        conn.commit()
+
+
+def add_tokens(run_id: int, prompt_tokens: int, completion_tokens: int) -> None:
+    """会话追问等增量消耗：累加到运行总用量。"""
+    with _lock, closing(_conn()) as conn:
+        conn.execute(
+            "UPDATE runs SET prompt_tokens = prompt_tokens + ?, completion_tokens = completion_tokens + ? WHERE id = ?",
+            (prompt_tokens, completion_tokens, run_id),
         )
         conn.commit()
 
@@ -187,7 +211,8 @@ def fail_stale_runs() -> int:
 def list_runs(limit: int = 50) -> list[dict]:
     with closing(_conn()) as conn:
         rows = conn.execute(
-            """SELECT id, title, rumor_text, status, final_verdict, error, data_date, created_at, finished_at
+            """SELECT id, title, rumor_text, status, final_verdict, error, data_date,
+                      prompt_tokens, completion_tokens, created_at, finished_at
                FROM runs ORDER BY id DESC LIMIT ?""",
             (limit,),
         ).fetchall()

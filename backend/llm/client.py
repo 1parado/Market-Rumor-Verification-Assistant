@@ -14,6 +14,18 @@ from __future__ import annotations
 
 from schemas import LLMConfig
 from llm.base import ChatResponse, LLMError
+from llm.tokens import extract_usage, record as record_usage
+
+
+def _flatten_messages(messages: list[dict]) -> str:
+    """把中间格式消息拼成纯文本，供 tiktoken 兜底计数。"""
+    parts = []
+    for m in messages:
+        if m.get("content"):
+            parts.append(str(m["content"]))
+        for tc in m.get("tool_calls") or []:
+            parts.append(str(tc.get("arguments", "")))
+    return "\n".join(parts)
 
 
 def _validate(llm_config: LLMConfig) -> None:
@@ -32,10 +44,30 @@ def chat(
     tools: list[dict] | None = None,
     tool_choice: str | dict | None = None,
 ) -> ChatResponse:
-    """统一 LLM 调用，按 protocol 分发。"""
+    """统一 LLM 调用：分发 + token 用量统计（真实 usage 优先，tiktoken 兜底）。"""
+    _validate(llm_config)
+    prompt_text = _flatten_messages(messages)
+    resp = _dispatch(messages, llm_config, tools, tool_choice)
+    completion_text = (resp.content or "") + "".join(
+        str(tc.arguments) for tc in resp.tool_calls
+    )
+    resp.prompt_tokens, resp.completion_tokens = extract_usage(resp.raw, prompt_text, completion_text)
+    record_usage(resp.prompt_tokens, resp.completion_tokens)
+    key = getattr(llm_config, "usage_key", None)
+    if key:
+        from llm.tokens import record_to
+        record_to(key, resp.prompt_tokens, resp.completion_tokens)
+    return resp
+
+
+def _dispatch(
+    messages: list[dict],
+    llm_config: LLMConfig,
+    tools: list[dict] | None,
+    tool_choice: str | dict | None,
+) -> ChatResponse:
     from llm import protocols  # 延迟导入，避免与 protocols 的导入环
 
-    _validate(llm_config)
     if llm_config.protocol == "openai_chat":
         return protocols.openai_chat(messages, llm_config, tools, tool_choice)
     if llm_config.protocol == "openai_responses":

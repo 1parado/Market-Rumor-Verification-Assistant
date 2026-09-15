@@ -68,6 +68,34 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
 .chat-form{display:flex;gap:8px}
 .chat-form input{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px}
 .chat-form input:focus{outline:none;border-color:var(--accent)}
+/* Markdown 渲染内容（basis / reasoning / 报告 / Agent 回复） */
+.md p{margin:.35em 0}
+.md p:first-child{margin-top:0}
+.md p:last-child{margin-bottom:0}
+.md ul,.md ol{margin:.35em 0;padding-left:1.4em}
+.md li{margin:.2em 0}
+.md code{background:var(--border-soft);border-radius:4px;padding:1px 5px;font-size:.92em;font-family:"SF Mono",Consolas,monospace}
+.md pre{background:var(--border-soft);border-radius:var(--radius-sm);padding:10px;overflow-x:auto;font-size:12.5px}
+.md pre code{background:none;padding:0}
+.md h1,.md h2,.md h3,.md h4{margin:.6em 0 .3em;font-size:1.05em}
+.md h1:first-child,.md h2:first-child,.md h3:first-child{margin-top:0}
+.md blockquote{margin:.4em 0;padding:2px 10px;border-left:3px solid var(--border);color:var(--text-2)}
+.md a{color:var(--accent)}
+.md table{border-collapse:collapse;margin:.4em 0;font-size:.95em}
+.md th,.md td{border:1px solid var(--border);padding:3px 8px}
+/* 报告卡从 <pre> 改为渲染后的 md div，覆盖等宽/保留换行样式 */
+.doc.md{font-family:inherit;white-space:normal;font-size:13px}
+/* 置信度：环形图 + 断言条 */
+.final{flex-wrap:wrap}
+.conf-donut{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
+.conf-num{font-size:15px;font-weight:700;fill:var(--text);font-family:inherit}
+.conf-cap{font-size:11px;color:var(--text-3)}
+.conf-pill{display:inline-flex;align-items:center;gap:6px}
+.conf-bar{display:inline-block;width:64px;height:5px;border-radius:3px;background:var(--border-soft);overflow:hidden}
+.conf-fill{display:block;height:100%;border-radius:3px;transition:width .4s ease}
+.conf-val{font-size:11px;color:var(--text-2);min-width:32px;text-align:right}
+/* token 用量 chip */
+.tok-chip{font-size:11px;color:var(--text-2);border:1px solid var(--border);border-radius:12px;padding:2px 9px;white-space:nowrap}
 .primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer}
 .primary:hover{opacity:.9}
 .primary:disabled{opacity:.5;cursor:not-allowed}
@@ -208,3 +236,154 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
 .pill-ico{display:grid;place-items:center;opacity:.55}
 .pill-ico .ico{width:16px;height:16px}
 .pill-go .ico{width:16px;height:16px}
+
+/* ============================================================
+   视觉升级层：柔和浮起卡片 / 时间线 / 胶囊徽章 / 渐变置信度环 /
+   反驳状态条 —— 冷色调基底 + 橙色警示点缀
+   ============================================================ */
+
+/* ---- 1. 色板与阴影 token（覆盖上文的安静版） ---- */
+:root{
+  --bg:#f2f5fa;                       /* 极浅蓝灰底 */
+  --bg-alt:#e9eef6;
+  --surface:#ffffff;                  /* 卡片纯白浮起 */
+  --border:#e2e8f2;
+  --border-soft:#eef1f7;
+  --accent-soft:rgba(43,108,240,.10);
+  --ok:#16a06a;                       /* 完成绿：更饱和 */
+  --warn:#f08c00;                     /* 存疑橙：警示点缀 */
+  --danger:#e5484d;
+  --shadow-card:0 1px 2px rgba(23,43,99,.05),0 8px 24px rgba(23,43,99,.06);
+  --shadow-card-hover:0 2px 6px rgba(23,43,99,.06),0 12px 32px rgba(23,43,99,.10);
+  --radius:12px;
+}
+[data-theme="dark"]{
+  --bg:#0f1115; --bg-alt:#1a1e28;
+  --shadow-card:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.25);
+  --shadow-card-hover:0 2px 6px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+}
+
+body{line-height:1.68}
+
+/* ---- 2. 卡片：纯白浮起 + 柔和阴影 ---- */
+.card{
+  padding:20px 22px;margin-bottom:18px;
+  box-shadow:var(--shadow-card);
+  border-color:var(--border);
+  transition:box-shadow .2s ease,transform .2s ease;
+}
+.card:hover{box-shadow:var(--shadow-card-hover)}
+.card-head{margin-bottom:14px}
+.card-head h2{font-size:15px;font-weight:700;letter-spacing:.01em;display:flex;align-items:center;gap:8px}
+.card-head h2::before{content:"";width:3px;height:14px;border-radius:2px;background:var(--accent);opacity:.9}
+.sub{font-size:11.5px}
+.wrap{padding:24px 20px}
+
+/* ---- 3. Agent 过程：精致时间线 ---- */
+.proc-log{
+  position:relative;
+  font-family:"SF Mono",Consolas,monospace;font-size:12.5px;line-height:1.9;
+  max-height:380px;overflow:auto;
+  background:transparent;border:0;border-radius:0;padding:4px 0;
+}
+.proc-log::before{
+  content:"";position:absolute;left:9px;top:20px;bottom:16px;width:2px;
+  background:linear-gradient(to bottom,var(--accent-soft) 0%,var(--border) 12%,var(--border) 88%,transparent 100%);
+  border-radius:1px;
+}
+.prow{position:relative;padding-left:30px;color:var(--text-2);white-space:pre-wrap;word-break:break-word}
+.prow::before{
+  content:"";position:absolute;left:4px;top:.5em;width:8px;height:8px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--text-3);
+  box-sizing:border-box;z-index:1;
+}
+.prow.k-start{color:var(--accent);font-weight:600}
+.prow.k-start::before{border-color:var(--accent);background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.prow.k-plan,.prow.k-ev,.prow.k-judge{color:var(--text);font-weight:600}
+.prow.k-plan::before{border-color:var(--accent)}
+.prow.k-ev::before{border-color:#0e9db5}
+.prow.k-judge::before{border-color:var(--ok)}
+.prow.k-judge{color:var(--ok)}
+.prow.k-step{color:var(--text-3)}
+.prow.k-step::before{border-style:dashed}
+.prow.k-error{color:var(--danger);font-weight:600}
+.prow.k-error::before{border-color:var(--danger);background:var(--danger)}
+.prow.k-plan-sub,.prow.k-ev-sub{color:var(--text-3);padding-left:46px;font-size:12px}
+.prow.k-plan-sub::before,.prow.k-ev-sub::before{left:20px;width:5px;height:5px;border-width:1.5px;top:.72em}
+
+/* ---- 4. 判定徽章：胶囊 + 图标，关键色更饱和 ---- */
+.vbadge{
+  padding:6px 16px;border-radius:999px;font-weight:700;font-size:13px;letter-spacing:.02em;
+  box-shadow:inset 0 0 0 1px rgba(23,43,99,.05);
+}
+.vbadge .vico{width:14px;height:14px}
+.vbadge .vdot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.v-credible{background:rgba(22,160,106,.13);color:#0e8a52}
+.v-questionable{background:rgba(240,140,0,.14);color:#d97a00}
+.v-unverifiable{background:rgba(108,118,138,.15);color:var(--text-2)}
+[data-theme="dark"] .v-credible{color:#3ecf94}
+[data-theme="dark"] .v-questionable{color:#ffb04d}
+
+/* 断言标签：小胶囊 */
+.tag{font-size:10.5px;padding:2px 9px;border-radius:999px;font-weight:600}
+.tag.supports{background:rgba(22,160,106,.13);color:#0e8a52}
+.tag.refutes{background:rgba(229,72,77,.13);color:var(--danger)}
+.tag.unverifiable{background:rgba(108,118,138,.15);color:var(--text-2)}
+
+/* ---- 5. 依据块：冷灰底 + 蓝色引导线 ---- */
+.basis{
+  margin:0 0 14px;padding:12px 16px;
+  background:#f7f9fc;border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  font-size:13px;line-height:1.8;color:var(--text-2);
+}
+[data-theme="dark"] .basis{background:var(--border-soft)}
+.rumor-echo{background:#f7f9fc;border-left:3px solid var(--border);font-size:13.5px;padding:10px 14px}
+[data-theme="dark"] .rumor-echo{background:var(--border-soft)}
+
+/* 断言卡：轻微层次 */
+.verts{gap:10px;margin-bottom:16px}
+.vert{padding:12px 14px;border-radius:10px;transition:border-color .18s ease}
+.vert:hover{border-color:var(--accent)}
+.vhead{margin-bottom:6px}
+.vhead .vt{font-weight:600;font-size:13px}
+.vreason{font-size:12.5px;line-height:1.75;margin:6px 0}
+
+/* ---- 6. 置信度环：渐变 + 细描边 ---- */
+.conf-donut{gap:10px}
+.conf-donut svg{filter:drop-shadow(0 2px 6px rgba(23,43,99,.10))}
+.conf-num{font-size:16px;font-weight:800;fill:var(--text)}
+.conf-pct{font-size:9px;font-weight:600;fill:var(--text-3)}
+.conf-cap{font-size:11px;color:var(--text-2)}
+.conf-bar{width:68px;height:5px}
+.conf-fill{transition:width .5s cubic-bezier(.22,1,.36,1)}
+
+/* ---- 7. 底部判定状态条（反驳高亮） ---- */
+.verdict-strip{margin-bottom:12px;padding:12px 16px;background:#f7f9fc;border-radius:10px;transition:background .2s ease}
+.verdict-strip.warn{background:rgba(240,140,0,.07);box-shadow:inset 0 0 0 1px rgba(240,140,0,.28)}
+[data-theme="dark"] .verdict-strip{background:var(--border-soft)}
+.vs-bar{display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px;margin-bottom:9px}
+.vs-seg{border-radius:2px;transition:flex .4s ease}
+.vs-seg.ok{background:var(--ok)}
+.vs-seg.bad{background:var(--danger)}
+.vs-seg.unk{background:#a8b1c0}
+.vs-legend{display:flex;gap:16px;font-size:11.5px;color:var(--text-2)}
+.vs-legend span{display:inline-flex;align-items:center;gap:5px}
+.vs-legend i{width:8px;height:8px;border-radius:3px;display:inline-block}
+.vs-legend .ok i{background:var(--ok)}
+.vs-legend .bad i{background:var(--danger)}
+.vs-legend .unk i{background:#a8b1c0}
+.vs-legend .bad{color:var(--danger);font-weight:600}
+
+/* ---- 8. 会话气泡：Agent 白底描边（浮起），用户蓝渐变 ---- */
+.chat-log{gap:12px}
+.chat-bubble{line-height:1.7;padding:9px 13px}
+.chat-msg.user .chat-bubble{background:linear-gradient(135deg,#2b6cf0,#4d8dff);border-bottom-right-radius:4px}
+.chat-msg.assistant .chat-bubble{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px;box-shadow:0 1px 3px rgba(23,43,99,.05)}
+
+/* token chip 同步冷色调 */
+.tok-chip{background:var(--surface);border-color:var(--border)}
+
+/* 运行状态 tag（历史列表）饱和化 */
+.tag.st-done{background:rgba(22,160,106,.13);color:#0e8a52}
+.tag.st-error{background:rgba(229,72,77,.13);color:var(--danger)}
+.tag.st-running{background:rgba(43,108,240,.12);color:var(--accent)}

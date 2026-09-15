@@ -21,6 +21,7 @@ class LLMConfig(BaseModel):
     protocol: Protocol
     model: str
     temperature: float = 0.0
+    usage_key: str | None = None  # 后端内部：token 用量收集器 key，前端不传
 
 
 # ===== 工具返回 =====
@@ -79,6 +80,7 @@ class Verification(BaseModel):
     reasoning: str
     source: EvidenceSource | None = None
     source_ref: str | None = None
+    confidence: int | None = None  # 0-100，judge 对该条判断的把握程度
 
 
 FinalVerdict = Literal["credible", "questionable", "unverifiable"]
@@ -93,6 +95,7 @@ class RumorCheckResult(BaseModel):
     verifications: list[Verification] = Field(default_factory=list)
     final_verdict: FinalVerdict = "unverifiable"
     basis: str = ""
+    confidence: int | None = None  # 0-100，整体置信度
     sources: list[str] = Field(default_factory=list)
     data_date: str | None = None
 

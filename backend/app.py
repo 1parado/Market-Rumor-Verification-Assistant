@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from data.local_data import RUMORS
 from llm import LLMError, chat, list_models
+from llm import tokens
 from pipeline import build_graph, run_check
 from schemas import LLMConfig, LLMTestResult, RumorCheckResult
 import storage
@@ -167,12 +168,17 @@ def run_chat(run_id: int, req: RunChatRequest) -> dict:
         for m in run.get("messages", [])[-10:]
     ]
     messages = [{"role": "system", "content": system}, *history]
+    collector = tokens.start_collector()
     try:
         resp = chat(messages, req.llm)
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM 调用失败：status={exc.status}, {exc.detail}")
+    finally:
+        usage = collector.totals()
+        tokens.stop_collector()
     reply = storage.add_message(run_id, "assistant", resp.content)
-    return {"ok": True, "reply": reply}
+    storage.add_tokens(run_id, usage["prompt_tokens"], usage["completion_tokens"])
+    return {"ok": True, "reply": reply["content"], "usage": usage}
 
 
 @app.post("/api/rumor/check")
@@ -195,6 +201,9 @@ def check_rumor_stream(req: RumorCheckRequest) -> StreamingResponse:
     """
     def gen():
         run_id = storage.create_run(req.rumor_text)
+        usage_key = str(run_id)
+        tokens.register(usage_key)
+        llm_cfg = req.llm.model_copy(update={"usage_key": usage_key})
         # 直线流水线节点顺序：节点 A 完成即乐观推送节点 B「进行中」，
         # 让前端在 LLM 调用期间也能看到实时进度（否则十几秒无任何输出）。
         next_step = {"planner": "evidence", "evidence": "judge"}
@@ -211,7 +220,7 @@ def check_rumor_stream(req: RumorCheckRequest) -> StreamingResponse:
             storage.add_event(run_id, "start", {"rumor_text": req.rumor_text})
             yield from push_step("planner")
             for chunk in graph.stream(
-                {"rumor_text": req.rumor_text, "llm_config": req.llm},
+                {"rumor_text": req.rumor_text, "llm_config": llm_cfg},
                 stream_mode="updates",
             ):
                 for node, update in chunk.items():
@@ -223,24 +232,37 @@ def check_rumor_stream(req: RumorCheckRequest) -> StreamingResponse:
                     res = update.get("result")
                     if isinstance(res, RumorCheckResult):
                         final = res
-            done_payload = {"result": _serialize(final), "run_id": run_id} if final else {"run_id": run_id}
+            usage = tokens.collect(usage_key) or {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            done_payload = {"result": _serialize(final), "run_id": run_id, "usage": usage} if final \
+                else {"run_id": run_id, "usage": usage}
             yield _sse("done", done_payload)
             if final:
                 serialized = _serialize(final)
-                storage.finish_run(run_id, "done", serialized, report_md=_result_md(serialized))
+                storage.finish_run(
+                    run_id, "done", serialized, report_md=_result_md(serialized),
+                    prompt_tokens=usage["prompt_tokens"], completion_tokens=usage["completion_tokens"],
+                )
             else:
                 storage.finish_run(run_id, "error", error="流水线未产出结果")
         except LLMError as exc:
+            usage = tokens.collect(usage_key)
             detail = f"LLM 调用失败（status={exc.status}）：{exc.detail}"
             payload = {"status": exc.status, "detail": exc.detail}
             yield _sse("error", payload)
             storage.add_event(run_id, "error", payload)
-            storage.finish_run(run_id, "error", error=detail)
+            storage.finish_run(run_id, "error", error=detail,
+                               prompt_tokens=(usage or {}).get("prompt_tokens", 0),
+                               completion_tokens=(usage or {}).get("completion_tokens", 0))
         except Exception as exc:  # noqa: BLE001
+            usage = tokens.collect(usage_key)
             payload = {"detail": str(exc)}
             yield _sse("error", payload)
             storage.add_event(run_id, "error", payload)
-            storage.finish_run(run_id, "error", error=f"核查异常：{exc}")
+            storage.finish_run(run_id, "error", error=f"核查异常：{exc}",
+                               prompt_tokens=(usage or {}).get("prompt_tokens", 0),
+                               completion_tokens=(usage or {}).get("completion_tokens", 0))
+        finally:
+            tokens.stop_collector()
 
     return StreamingResponse(
         gen(),
