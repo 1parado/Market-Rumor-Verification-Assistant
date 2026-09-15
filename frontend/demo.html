@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核真 Veritas · AI Agent Workbench</title>
+<meta name="description" content="核真工作台交互演示：Plan-Execute 计划执行、审批队列、置信度可视化、传闻结果卡。">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ================= 顶栏 ================= -->
+<header class="topbar">
+  <div class="brand"><img class="brand-mark" src="assets/icon.png" alt="核真 Veritas 图标"><span>核真 Veritas</span></div>
+  <div class="task-name" contenteditable="true" spellcheck="false" title="点击编辑任务名">
+    <h1>市场传闻核查 · 批次 #A（5 条）</h1><span class="pen">✎</span>
+  </div>
+  <span class="run-chip" id="runChip"><i></i>Running · 4/5</span>
+
+  <div class="top-right">
+    <div class="autonomy" title="自主程度">
+      <span>Autonomy</span>
+      <div class="dial"><div class="track"></div><div class="fill" id="dialFill"></div>
+        <input type="range" id="dial" min="0" max="100" value="75">
+      </div>
+      <span id="autoPct">75%</span>
+    </div>
+    <button class="quit" id="quitBtn">⏸ 暂停 / 接管</button>
+    <button class="icon-btn" id="themeBtn" title="切换主题">◐</button>
+    <div class="avatar" title="Paradox">P</div>
+  </div>
+</header>
+
+<div class="shell">
+  <!-- ================= 左栏 ================= -->
+  <aside class="col left" id="leftSidebar">
+    <div class="side-sec">
+      <div class="sec-label">Sessions <button id="newTask" title="新建任务">＋</button></div>
+      <div class="s-row on"><span class="dot run"></span><span class="g">市场传闻核查 · 批次 #A</span><span class="st run">3/5</span></div>
+      <div class="s-row"><span class="dot" style="background:var(--ok);opacity:.6"></span><span class="g">澜星电子异动快查</span><span class="st ok">已完成</span></div>
+      <div class="s-row"><span class="dot" style="background:var(--danger);opacity:.6"></span><span class="g">板块联动传闻扫描</span><span class="st bad">失败</span></div>
+      <div class="s-row"><span class="dot" style="opacity:.3"></span><span class="g">核查规则库维护</span><span class="st">搁置</span></div>
+    </div>
+
+    <div class="side-sec">
+      <div class="sec-label">Active Agents</div>
+      <div class="s-row"><span class="dot run"></span><span class="g">核查规划主 Agent</span><span class="st">Running</span></div>
+      <div class="s-row"><span class="dot run"></span><span class="g">行情查询器</span><span class="st">Running</span></div>
+      <div class="s-row"><span class="dot pend"></span><span class="g">公告检索器</span><span class="st">待审批</span></div>
+      <div class="s-row"><span class="dot idle"></span><span class="g">交叉验证器</span><span class="st">Idle</span></div>
+    </div>
+
+    <div class="side-sec">
+      <div class="sec-label">Workspace</div>
+      <div class="s-row file"><span class="tree">▾</span>rumor-check/<span class="st"></span></div>
+      <div class="s-row file indent">📄 rumors.json <em>5 条</em></div>
+      <div class="s-row file indent">🐍 check_rumor.py <em>2.1 KB</em></div>
+      <div class="s-row file indent">📝 核查报告.md <em>草稿</em></div>
+      <div class="s-row file indent">🗂 insights/ <em>6 家</em></div>
+    </div>
+
+    <div class="side-sec">
+      <div class="sec-label">Plugins</div>
+      <div class="plug-row"><span class="g">get_quote</span><span class="ver">v1.2</span><button class="sw on" aria-label="开关"></button></div>
+      <div class="plug-row"><span class="g">get_announcements</span><span class="ver">v1.1</span><button class="sw on" aria-label="开关"></button></div>
+      <div class="plug-row"><span class="g">get_news</span><span class="ver">v1.3</span><button class="sw on" aria-label="开关"></button></div>
+      <div class="plug-row"><span class="g">web_search</span><span class="ver">v1.0</span><button class="sw" aria-label="开关"></button></div>
+    </div>
+
+    <div class="side-foot">
+      <div class="lbl">System</div>
+      <div class="sys"><i></i>所有系统正常</div>
+      <div class="lbl" style="padding-top:8px">Workspace</div>
+      <div class="ws">同花顺笔试 · rumor-check ›</div>
+    </div>
+  </aside>
+
+  <!-- 左栏把手：点击折叠/展开，拖拽调宽 -->
+  <div class="gutter" id="leftGutter" data-side="left" role="separator" aria-orientation="vertical" title="拖拽调宽 · 双击重置">
+    <button class="gutter-btn" type="button" aria-controls="leftSidebar" aria-expanded="true">‹</button>
+  </div>
+
+  <!-- ================= 中栏 ================= -->
+  <main class="mid">
+    <nav class="mid-tabs">
+      <button class="mtab on" data-v="bench">工作台</button>
+      <button class="mtab" data-v="canvas">Build Canvas</button>
+    </nav>
+
+    <!-- 工作台 -->
+    <section class="mview on" id="v-bench">
+      <div class="pad">
+
+        <!-- 结果摘要：第一眼看到批次结果 -->
+        <div class="summary-sec">
+          <div class="sec-title-row"><h2>结果摘要</h2><span class="sec-sub">批次 #A · 数据截至 2026-08-07</span></div>
+          <div class="summary-grid">
+            <div class="donut-card">
+              <div class="donut-wrap">
+                <svg class="donut" viewBox="0 0 120 120" role="img" aria-label="核查状态分布环形图：可信 2，存疑 1，无法核实 1，待审批 1">
+                  <circle class="ring" cx="60" cy="60" r="48"/>
+                  <circle class="seg" cx="60" cy="60" r="48" stroke="var(--v-trust)"   stroke-dasharray="118.6 183"   stroke-dashoffset="0"/>
+                  <circle class="seg" cx="60" cy="60" r="48" stroke="var(--v-suspect)" stroke-dasharray="58.3 243.3" stroke-dashoffset="-120.6"/>
+                  <circle class="seg" cx="60" cy="60" r="48" stroke="var(--v-unknown)" stroke-dasharray="58.3 243.3" stroke-dashoffset="-181"/>
+                  <circle class="seg" cx="60" cy="60" r="48" stroke="var(--v-pending)" stroke-dasharray="58.3 243.3" stroke-dashoffset="-241.3"/>
+                </svg>
+                <div class="donut-center"><b>4<span>/5</span></b><span>已核查</span></div>
+              </div>
+              <div class="dist-legend">
+                <span><i style="background:var(--v-trust)"></i>可信 2</span>
+                <span><i style="background:var(--v-suspect)"></i>存疑 1</span>
+                <span><i style="background:var(--v-unknown)"></i>无法核实 1</span>
+                <span><i style="background:var(--v-pending)"></i>待审批 1</span>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card"><div class="n">4<span class="unit">/5</span></div><div class="l"><i style="background:var(--accent)"></i>已核查</div></div>
+              <div class="stat-card"><div class="n" style="color:var(--v-trust)">2</div><div class="l"><i style="background:var(--v-trust)"></i>可信</div></div>
+              <div class="stat-card"><div class="n" style="color:var(--v-suspect)">1</div><div class="l"><i style="background:var(--v-suspect)"></i>存疑</div></div>
+              <div class="stat-card"><div class="n" style="color:var(--v-unknown)">1</div><div class="l"><i style="background:var(--v-unknown)"></i>无法核实</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 核查结果：每条传闻独立卡片，点击展开完整依据 -->
+        <div class="results-sec">
+          <div class="sec-title-row"><h2>核查结果</h2><span class="sec-sub">5 条传闻 · 点击卡片展开完整依据</span></div>
+          <div class="results-stack">
+
+            <div class="result-card v-trust" role="button" tabindex="0" aria-expanded="false">
+              <div class="rc-head">
+                <span class="rc-idx">①</span>
+                <div class="rc-main">
+                  <div class="rc-title">恒润科技 · 「大资金进场」</div>
+                  <div class="rc-ev">涨停 +10.0%，龙虎榜两机构席位净买入；异动公告无未披露事项</div>
+                </div>
+                <span class="rc-tag">可信</span>
+              </div>
+              <div class="rc-conf"><div class="bar"><i style="width:96%"></i></div><span class="num">96%</span><span class="chev">⌄</span></div>
+              <div class="rc-more">
+                <ul>
+                  <li><b>行情：</b>2026-08-07 涨停 +10.0%，成交额创近一年新高</li>
+                  <li><b>资讯：</b>龙虎榜显示两机构席位净买入</li>
+                  <li><b>公告：</b>无异动相关的未披露重大事项</li>
+                </ul>
+                <div class="rc-src">get_quote · get_news · 数据日期 2026-08-07</div>
+              </div>
+              <div class="rc-src rc-brief">get_quote · get_news · 数据日期 2026-08-07</div>
+            </div>
+
+            <div class="result-card v-suspect" role="button" tabindex="0" aria-expanded="false">
+              <div class="rc-head">
+                <span class="rc-idx">②</span>
+                <div class="rc-main">
+                  <div class="rc-title">蓝湾生物 · 「三期临床失败」</div>
+                  <div class="rc-ev">公告明确「试验达到主要终点」，与传闻直接矛盾；股价 +2.4% 无崩盘迹象</div>
+                </div>
+                <span class="rc-tag">存疑</span>
+              </div>
+              <div class="rc-conf"><div class="bar"><i style="width:92%"></i></div><span class="num">92%</span><span class="chev">⌄</span></div>
+              <div class="rc-more">
+                <ul>
+                  <li><b>公告：</b>LW-102 三期临床试验达到主要终点，将推进上市申请（08-06）</li>
+                  <li><b>行情：</b>8-07 收盘 55.60 元（+2.4%）</li>
+                  <li><b>规则：</b>传闻与公告直接矛盾 → 存疑（倾向不实）</li>
+                </ul>
+                <div class="rc-src">get_announcements · get_quote · 数据日期 2026-08-07</div>
+              </div>
+              <div class="rc-src rc-brief">get_announcements · get_quote · 数据日期 2026-08-07</div>
+            </div>
+
+            <div class="result-card v-pending" role="button" tabindex="0" aria-expanded="false">
+              <div class="rc-head">
+                <span class="rc-idx">③</span>
+                <div class="rc-main">
+                  <div class="rc-title">青云数科 · 澜星电子 · 「板块集体大跌」</div>
+                  <div class="rc-ev">青云 -6.2% 属实；澜星 +1.3% 与「跌超 5 点」矛盾，待外部龙虎榜数据补全</div>
+                </div>
+                <span class="rc-tag">待审批</span>
+              </div>
+              <div class="rc-conf"><div class="bar"><i style="width:38%"></i></div><span class="num">38%</span><span class="chev">⌄</span></div>
+              <div class="rc-more">
+                <ul>
+                  <li><b>行情：</b>青云数科 -6.2%，计算板块领跌</li>
+                  <li><b>行情：</b>澜星电子 +1.3%，与「跌超 5 点」矛盾</li>
+                  <li><b>悬起：</b>龙虎榜数据源需人工批准后接入</li>
+                </ul>
+                <div class="rc-src">get_quote ×2 · 等待外部数据源审批</div>
+              </div>
+              <div class="rc-src rc-brief">get_quote ×2 · 等待外部数据源审批</div>
+            </div>
+
+            <div class="result-card v-unknown" role="button" tabindex="0" aria-expanded="false">
+              <div class="rc-head">
+                <span class="rc-idx">④</span>
+                <div class="rc-main">
+                  <div class="rc-title">睿驰半导体 · 「国资重组翻倍」</div>
+                  <div class="rc-ev">仅查到业绩预告，无重组信息；数据查不到的明确说无法核实，不编造</div>
+                </div>
+                <span class="rc-tag">无法核实</span>
+              </div>
+              <div class="rc-conf"><div class="bar"><i style="width:12%"></i></div><span class="num">12%</span><span class="chev">⌄</span></div>
+              <div class="rc-more">
+                <ul>
+                  <li><b>公告：</b>仅 2026 半年度业绩预告（净利 +15%–25%）</li>
+                  <li><b>资讯：</b>车规芯片出货量回升，无重组相关信息</li>
+                  <li><b>规则：</b>本地数据查不到 → 无法核实，绝不编造</li>
+                </ul>
+                <div class="rc-src">get_announcements · get_news · 数据日期 2026-08-07</div>
+              </div>
+              <div class="rc-src rc-brief">get_announcements · get_news · 数据日期 2026-08-07</div>
+            </div>
+
+            <div class="result-card v-trust" role="button" tabindex="0" aria-expanded="false">
+              <div class="rc-head">
+                <span class="rc-idx">⑤</span>
+                <div class="rc-main">
+                  <div class="rc-title">新湾储能 · 「储能新股破发」</div>
+                  <div class="rc-ev">上市首日收跌 -12.3%，破发属实；为本月第二只破发新股</div>
+                </div>
+                <span class="rc-tag">可信</span>
+              </div>
+              <div class="rc-conf"><div class="bar"><i style="width:93%"></i></div><span class="num">93%</span><span class="chev">⌄</span></div>
+              <div class="rc-more">
+                <ul>
+                  <li><b>指代消解：</b>「上月的储能新股」→ 新湾储能（301901）</li>
+                  <li><b>资讯：</b>上市首日收跌 -12.3%，本月第二只破发新股</li>
+                  <li><b>行情：</b>现价 18.75 元</li>
+                </ul>
+                <div class="rc-src">get_quote · get_news · 数据日期 2026-08-07</div>
+              </div>
+              <div class="rc-src rc-brief">get_quote · get_news · 数据日期 2026-08-07</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Plan（可折叠，默认收起） -->
+        <div class="card closed">
+          <div class="card-head">
+            <h2><span class="section-kicker">01</span> Plan</h2><span class="sub">3 / 5 步完成 · 传闻③ 待审批</span>
+            <span class="sp"></span>
+            <button class="ghost" onclick="toast('计划已重新生成')">↻</button>
+            <button class="ghost" onclick="toast('可拖拽调整步骤顺序')">✎ Replan</button>
+            <button class="ghost fold-toggle" aria-expanded="false" title="展开 / 收起">⌄</button>
+          </div>
+          <div class="fold-zone">
+            <div class="step done"><div class="step-num">✓</div><div class="step-body"><div class="step-title">拆解 5 条传闻，识别涉及公司<span class="chip done">Done</span></div><div class="step-desc">共识别 6 家公司；传闻③ 涉及两家需逐家查证</div></div></div>
+            <div class="step done"><div class="step-num">✓</div><div class="step-body"><div class="step-title">传闻① 恒润科技「大资金进场」<span class="chip done">Done</span></div><div class="step-desc">涨停 +10.0% · 龙虎榜两机构净买入佐证</div></div></div>
+            <div class="step done"><div class="step-num">✓</div><div class="step-body"><div class="step-title">传闻② 蓝湾生物「临床失败」<span class="chip done">Done</span></div><div class="step-desc">与公告直接矛盾 → 存疑（倾向不实）</div></div></div>
+            <div class="step run"><div class="step-num">4</div><div class="step-body"><div class="step-title">传闻③ 计算板块「集体大跌」<span class="chip wait">待审批</span></div><div class="step-desc">等待外部龙虎榜数据源审批 · 置信度 38%</div></div></div>
+            <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">汇总结构化核查报告<span class="chip pend">Pending</span></div><div class="step-desc">判断 + 依据 + 数据来源，含 ④⑤ 传闻</div></div></div>
+          </div>
+        </div>
+
+        <!-- Conversation（可折叠，默认收起） -->
+        <div class="card closed">
+          <div class="card-head">
+            <h2><span class="section-kicker">02</span> Conversation</h2>
+            <span class="sp"></span>
+            <button class="ghost fold-toggle" aria-expanded="false" title="展开 / 收起">⌄</button>
+          </div>
+          <div class="fold-zone" style="padding:4px 14px 14px">
+            <div class="msg user"><div class="who">你</div><div class="body"><div class="head"><b>Paradox</b> · 14:24</div><div class="txt">朋友圈说蓝湾生物的新药三期临床失败了，股价要崩。帮我查证这条。</div></div></div>
+
+            <div class="msg agent"><div class="who">核</div><div class="body">
+              <div class="head"><b>核查规划主 Agent</b> · 14:24</div>
+              <details class="think"><summary>▸ Thinking · 3.2s</summary><div class="tc">传闻主张「三期临床失败」可证伪，优先查公告；涉及 1 家公司；公告若与传闻矛盾，明确说「与公告矛盾」而非笼统判可信。</div></details>
+              <details class="tool"><summary><span class="tn">get_announcements</span><span class="ta">("蓝湾生物")</span><span class="td">0.4s ✓</span></summary><div class="res">2026-08-06 公告：LW-102 三期临床试验达到主要终点，将推进上市申请。</div></details>
+              <details class="tool"><summary><span class="tn">get_quote</span><span class="ta">("蓝湾生物")</span><span class="td">0.2s ✓</span></summary><div class="res">{ price: 55.60, change_pct: <span class="down">+2.4%</span>, date: "2026-08-07" }</div></details>
+
+              <div class="verdict v-suspect">
+                <div class="vh"><span class="vb">存疑 · 倾向不实</span><span class="vc">置信度 92%</span></div>
+                <ul>
+                  <li><b>依据：</b>公告明确「试验达到主要终点」，与传闻「临床失败」直接矛盾</li>
+                  <li><b>行情：</b>8-07 收盘 55.60 元（+2.4%），未见崩盘迹象</li>
+                  <li><b>来源：</b>get_announcements / get_quote · 数据日期 2026-08-07</li>
+                </ul>
+                <div class="confbar"><span>低</span><div class="tr"><i style="width:92%;background:var(--warn)"></i></div><span>高</span></div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Build Canvas -->
+    <section class="mview" id="v-canvas">
+      <div class="cv-left">
+        <div class="cv-plan">
+          <h3>Build Plan</h3>
+          <div class="cv-step done"><div class="cv-num">✓</div><div class="cv-body"><div class="cv-top"><span class="t">明确报告结构</span><span class="s">已完成</span></div><div class="d">判断 / 依据 / 来源三段式</div></div></div>
+          <div class="cv-step done"><div class="cv-num">✓</div><div class="cv-body"><div class="cv-top"><span class="t">汇总核查数据</span><span class="s">已完成</span></div><div class="d">5 条传闻 × 6 家公司</div></div></div>
+          <div class="cv-step run"><div class="cv-num">3</div><div class="cv-body"><div class="cv-top"><span class="t">生成报告画布</span><span class="s">进行中</span></div><div class="d">正在渲染可视化摘要</div></div></div>
+          <div class="cv-step"><div class="cv-num">4</div><div class="cv-body"><div class="cv-top"><span class="t">人工复核</span></div><div class="d">确认后归档导出</div></div></div>
+        </div>
+        <details class="cv-hist" open>
+          <summary><span>Conversation History</span><span class="cv-hist-count">3</span></summary>
+          <div class="cv-hist-body">
+            <div class="cv-msg"><span class="who">你</span><span><b>你</b> · 14:30<br>把已完成的结论排成可分享的报告页。</span></div>
+            <div class="cv-msg"><span class="who">核</span><span><b>Agent</b> · 14:30<br>已分析 5 条传闻，先生成摘要卡与总表。</span></div>
+            <div class="cv-msg"><span class="who">核</span><span><b>Agent</b> · 14:31<br>画布布局已生成，正在填充可视化。</span></div>
+          </div>
+        </details>
+      </div>
+      <div class="cv-right">
+        <div class="cv-chrome">
+          <span class="live"><i></i>Live Preview</span>
+          <span class="sp"></span>
+          <button class="ghost" onclick="toast('预览已刷新')">↻ 刷新</button>
+          <button class="ghost" onclick="toast('全屏预览')">⛶ 全屏</button>
+        </div>
+        <div class="cv-frame">
+          <div class="report">
+            <div class="rgrid">
+              <div class="rcell"><div class="k">已核查</div><div class="v">3/5</div><div class="d w">2 条进行中</div></div>
+              <div class="rcell"><div class="k">可信</div><div class="v">1</div><div class="d">恒润涨停 · 96%</div></div>
+              <div class="rcell"><div class="k">存疑 / 无法核实</div><div class="v">1 / 1</div><div class="d w">蓝湾 · 睿驰</div></div>
+            </div>
+            <table>
+              <tr><th>#</th><th>传闻摘要</th><th>判断</th><th>关键依据</th></tr>
+              <tr><td>①</td><td><b>恒润科技涨停，大资金进场</b></td><td><span class="vc trust">可信</span></td><td>涨停 +10.0%；龙虎榜两机构净买入</td></tr>
+              <tr><td>②</td><td><b>蓝湾生物三期临床失败</b></td><td><span class="vc suspect">存疑</span></td><td>公告：试验达到主要终点，与传闻矛盾</td></tr>
+              <tr><td>③</td><td><b>计算板块集体大跌</b></td><td><span class="vc pending">待审批</span></td><td>青云 -6.2% ✓ / 澜星 +1.3%，部分矛盾</td></tr>
+              <tr><td>④</td><td><b>睿驰半导体国资重组</b></td><td><span class="vc unknown">无法核实</span></td><td>仅查到业绩预告，无重组信息</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 右栏把手：点击折叠/展开，拖拽调宽 -->
+  <div class="gutter" id="rightGutter" data-side="right" role="separator" aria-orientation="vertical" title="拖拽调宽 · 双击重置">
+    <button class="gutter-btn" type="button" aria-controls="rightSidebar" aria-expanded="true">›</button>
+  </div>
+
+  <!-- ================= 右栏 ================= -->
+  <aside class="col right" id="rightSidebar">
+    <div class="r-tabs">
+      <button class="r-tab on" data-r="act">Activity</button>
+      <button class="r-tab" data-r="appr">Approvals <span class="n" id="apprN">2</span></button>
+      <button class="r-tab" data-r="kb">Kanban</button>
+      <button class="r-tab" data-r="art">Artifacts</button>
+    </div>
+
+    <div class="r-view on" id="r-act">
+      <div class="r-head"><h3>Activity Stream</h3><button class="ghost" style="padding:2px 8px" onclick="toast('已刷新')">↻</button></div>
+      <div id="actList" aria-live="polite">
+        <div class="act result ok"><div class="at"><span>14:32:40</span><span>主 Agent</span></div><div class="an"><span class="rtag trust">可信</span>传闻⑤ 新湾储能破发属实 · 93%</div><div class="ad" onclick="tg(this)">get_quote("新湾储能") → -12.3%</div><div class="full">上市首日收跌 12.3%，破发确认；结论已写入核查报告。</div></div>
+        <div class="act run"><div class="at"><span>14:31:05</span><span>行情查询器</span></div><div class="an">交叉验证传闻③</div><div class="ad" onclick="tg(this)">get_quote("澜星电子") → …</div><div class="full">{ "price":12.06, "change_pct":1.3 }</div></div>
+        <div class="act warn"><div class="at"><span>14:31:05</span><span>公告检索器</span></div><div class="an"><b>等待批准</b>：接入外部龙虎榜数据源</div><div class="ad" onclick="tg(this)">approval.required(...) </div><div class="full">理由：本地数据无法核实「都跌超 5 个点」；置信度 38% &lt; 阈值 60%</div></div>
+        <div class="act bad"><div class="at"><span>14:31:04</span><span>公告检索器</span></div><div class="an">查询为空（青云数科）</div><div class="ad" onclick="tg(this)">get_announcements("青云数科") → []</div><div class="full">空结果不编造 → 标记「本地公告数据不足」</div></div>
+        <div class="act ok"><div class="at"><span>14:30:40</span><span>主 Agent</span></div><div class="an">传闻① 判定完成：<b>可信 96%</b></div><div class="ad" onclick="tg(this)">3 次工具调用 · 0.9s</div><div class="full">get_quote ✓ get_news ✓ get_announcements ✓</div></div>
+      </div>
+      <button class="r-foot" onclick="toast('已加载全部历史')">查看完整历史 →</button>
+    </div>
+
+    <div class="r-view" id="r-appr">
+      <div class="r-head"><h3>待审批 <span id="apprSub">2 项</span></h3><span>低置信度自动进入</span></div>
+
+      <div class="appr" data-appr>
+        <div class="h"><span class="ic" aria-hidden="true">DB</span><div><div class="t">接入外部龙虎榜数据源</div><div class="m">公告检索器 · 高影响</div></div></div>
+        <div class="d">核实传闻③「都跌超 5 个点」：本地仅覆盖青云数科，澜星电子实际 +1.3% 与说法矛盾。</div>
+        <div class="c"><span>置信度</span><div class="tr"><i style="width:38%;background:var(--danger)"></i></div><b style="color:var(--danger)">38%</b></div>
+        <div class="btns">
+          <button class="b-ok low" onclick="appr(this,'已批准（低置信度，已标记风险）','ok')">✓ 批准</button>
+          <button class="b-no" onclick="appr(this,'已拒绝：传闻③ 按「无法核实」归档','no')">✕ 拒绝</button>
+          <button class="b-ed" onclick="toast('已打开编辑器')">✎ 编辑</button>
+        </div>
+      </div>
+
+      <div class="appr" data-appr>
+        <div class="h"><span class="ic" aria-hidden="true">DATA</span><div><div class="t">写入澜星电子结论</div><div class="m">主 Agent · 中影响</div></div></div>
+        <div class="d">澜星电子 8-07 实际上涨 +1.3%，直接推翻「跌超 5 个点」，将写入报告第 ③ 条依据。</div>
+        <div class="c"><span>置信度</span><div class="tr"><i style="width:81%;background:var(--ok)"></i></div><b style="color:var(--ok)">81%</b></div>
+        <div class="btns">
+          <button class="b-ok" onclick="appr(this,'结论已写入核查报告','ok')">✓ 批准</button>
+          <button class="b-no" onclick="appr(this,'已拒绝，保留人工占位','no')">✕ 拒绝</button>
+          <button class="b-ed" onclick="toast('已打开编辑器')">✎ 编辑</button>
+        </div>
+      </div>
+
+      <p style="font-size:10.8px;color:var(--text-3);padding:2px 4px">批准 / 拒绝后 5 秒内可撤销。</p>
+    </div>
+
+    <div class="r-view" id="r-kb">
+      <div class="r-head"><h3>任务看板</h3></div>
+      <div class="kb">
+        <section class="kb-column">
+          <h5><span>待处理</span><b>2</b></h5>
+          <div class="kcard">
+            <div class="kcard-top"><span class="kstatus neutral">Backlog</span><span class="kpriority">P4</span></div>
+            <div class="ktitle">传闻④ 国资重组查证</div>
+            <div class="km"><span>睿驰半导体</span><span>公告检索器</span></div>
+          </div>
+          <div class="kcard">
+            <div class="kcard-top"><span class="kstatus neutral">Backlog</span><span class="kpriority">P5</span></div>
+            <div class="ktitle">传闻⑤ 新股破发确认</div>
+            <div class="km"><span>新湾储能</span><span>行情查询器</span></div>
+          </div>
+        </section>
+        <section class="kb-column">
+          <h5><span>执行中</span><b>1</b></h5>
+          <div class="kcard kc-do">
+            <div class="kcard-top"><span class="kstatus active">Doing</span><span class="kpriority">P3</span></div>
+            <div class="ktitle">传闻③ 板块集体大跌</div>
+            <div class="km"><span>2 家公司</span><span class="km-warn">等待审批</span></div>
+          </div>
+          <h5 class="kb-subhead"><span>待复核</span><b>1</b></h5>
+          <div class="kcard kc-re">
+            <div class="kcard-top"><span class="kstatus review">Review</span><span class="kpriority">92%</span></div>
+            <div class="ktitle">传闻② 临床失败</div>
+            <div class="km"><span>蓝湾生物</span><span>倾向不实</span></div>
+          </div>
+          <h5 class="kb-subhead"><span>已完成</span><b>1</b></h5>
+          <div class="kcard kc-dn">
+            <div class="kcard-top"><span class="kstatus success">Done</span><span class="kpriority">96%</span></div>
+            <div class="ktitle">传闻① 涨停与资金进场</div>
+            <div class="km"><span>恒润科技</span><span>可信</span></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="r-view" id="r-art">
+      <div class="r-head"><h3>产物</h3><span>3 个文件</span></div>
+      <div class="art" onclick="toast('已打开核查报告')"><span class="ai">MD</span><div><div class="t">核查报告.md</div><div class="m">草稿 v3 · 4.2 KB · 刚刚更新</div></div></div>
+      <div class="art" onclick="toast('已复制到剪贴板')"><span class="ai">CSV</span><div><div class="t">传闻核查表.csv</div><div class="m">1.1 KB · 2 分钟前</div></div></div>
+      <div class="art" onclick="toast('已打开协作记录')"><span class="ai">LOG</span><div><div class="t">AI协作记录.md</div><div class="m">12 KB · 生成中…</div></div></div>
+    </div>
+  </aside>
+</div>
+
+<div id="toast"><span id="toastMsg"></span><button id="undoBtn" onclick="undo()" hidden>撤销</button></div>
+
+<script src="app.js"></script>
+</body>
+</html>

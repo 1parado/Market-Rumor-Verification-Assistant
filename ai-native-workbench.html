@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核真 Veritas · AI 核查工作台</title>
+<style>
+/* ============ Design Tokens ============ */
+:root{
+  --bg:#0f0f11; --panel:#151518; --card:#1a1a1e; --card-hi:#202025;
+  --border:#2a2a2e; --border-soft:#222226;
+  --text:#e9e9ec; --text-dim:#9b9ba4; --text-faint:#67676f;
+  --accent:#3b82f6; --accent-soft:rgba(59,130,246,.14);
+  --green:#22c55e; --orange:#f59e0b; --red:#ef4444; --blue:#3b82f6; --purple:#a78bfa;
+  --green-soft:rgba(34,197,94,.12); --orange-soft:rgba(245,158,11,.12);
+  --red-soft:rgba(239,68,68,.12); --purple-soft:rgba(167,139,250,.12);
+  --radius:10px; --radius-lg:14px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  --shadow:0 8px 28px rgba(0,0,0,.35);
+  --sidebar-w:244px; --right-w:344px;
+}
+[data-theme="light"]{
+  --bg:#f6f6f8; --panel:#fbfbfc; --card:#ffffff; --card-hi:#f2f3f6;
+  --border:#e4e4ea; --border-soft:#ecedf1;
+  --text:#1b1b20; --text-dim:#5f5f6b; --text-faint:#9a9aa5;
+  --accent-soft:rgba(59,130,246,.10);
+  --green-soft:rgba(34,197,94,.10); --orange-soft:rgba(245,158,11,.12);
+  --red-soft:rgba(239,68,68,.09); --purple-soft:rgba(167,139,250,.12);
+  --shadow:0 8px 24px rgba(20,20,40,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--font); background:var(--bg); color:var(--text);
+  font-size:13.5px; line-height:1.55; overflow:hidden;
+  transition:background .25s ease,color .25s ease;
+}
+::selection{background:var(--accent-soft)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-faint)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ============ Top Bar ============ */
+.topbar{
+  height:52px; display:flex; align-items:center; gap:14px; padding:0 14px;
+  background:var(--panel); border-bottom:1px solid var(--border);
+  position:relative; z-index:30;
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14.5px;letter-spacing:.2px;white-space:nowrap}
+.logo-mark{
+  width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;font-size:13px;font-weight:800;
+}
+.logo small{color:var(--text-faint);font-weight:500;font-size:11px}
+.task-title{
+  display:flex;align-items:center;gap:8px;min-width:0;
+  padding:5px 10px;border-radius:8px;cursor:text;
+}
+.task-title:hover{background:var(--card-hi)}
+.task-title h1{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.pencil{color:var(--text-faint);font-size:12px;flex:none}
+.status-chip{
+  display:flex;align-items:center;gap:10px;flex:none;
+}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+  font-size:11.5px;font-weight:600;background:var(--blue-soft);color:var(--blue);
+  border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);
+}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.progress{width:120px;height:4px;border-radius:4px;background:var(--border);overflow:hidden}
+.progress i{display:block;height:100%;width:42%;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--purple));transition:width .6s cubic-bezier(.22,1,.36,1)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+
+/* mode switch */
+.modes{display:flex;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:2px;gap:2px}
+.modes button{
+  border:0;background:transparent;color:var(--text-dim);font:inherit;font-size:12px;
+  padding:4px 11px;border-radius:7px;cursor:pointer;transition:all .18s ease;
+}
+.modes button:hover{color:var(--text)}
+.modes button.on{background:var(--card-hi);color:var(--text);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+
+/* autonomy dial */
+.autonomy{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--text-dim);white-space:nowrap}
+.dial{position:relative;width:110px;height:22px;display:flex;align-items:center}
+.dial input{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;cursor:pointer;position:relative;z-index:2;margin:0}
+.dial input::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--card);border:2.5px solid var(--accent);box-shadow:0 1px 5px rgba(0,0,0,.4);
+  transition:transform .15s ease;
+}
+.dial input::-webkit-slider-thumb:hover{transform:scale(1.15)}
+.dial .track{position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);
+  border-radius:4px;background:linear-gradient(90deg,var(--green),var(--orange),var(--red));opacity:.75}
+#autoLabel{min-width:82px;font-weight:600;color:var(--text)}
+
+/* escape hatch */
+.escaped{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9px;cursor:pointer;
+  background:var(--orange-soft);border:1px solid color-mix(in srgb,var(--orange) 40%,transparent);
+  color:var(--orange);font-size:12px;font-weight:600;transition:all .18s ease;
+}
+.escaped:hover{filter:brightness(1.12)}
+.avatar{
+  width:30px;height:30px;border-radius:50%;flex:none;cursor:pointer;
+  background:linear-gradient(135deg,#6366f1,#a78bfa);display:grid;place-items:center;
+  color:#fff;font-size:12px;font-weight:700;border:1px solid var(--border);
+}
+.icon-btn{
+  width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--card);
+  color:var(--text-dim);cursor:pointer;display:grid;place-items:center;font-size:14px;transition:all .18s ease;
+}
+.icon-btn:hover{color:var(--text);background:var(--card-hi)}
+
+/* ============ Shell Layout ============ */
+.shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr var(--right-w);height:calc(100vh - 52px)}
+body.rail-on .shell{grid-template-columns:52px 1fr var(--right-w)}
+body.rail-on .shell > .sidebar .full{display:none}
+
+/* ============ Sidebar ============ */
+.sidebar{
+  background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.side-scroll{flex:1;overflow-y:auto;padding:12px 10px}
+.side-sec{margin-bottom:16px}
+.side-label{
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--text-faint);padding:0 8px 6px;display:flex;justify-content:space-between;align-items:center;
+}
+.side-label b{font-weight:600;color:var(--text-faint)}
+.search{
+  display:flex;align-items:center;gap:7px;margin:0 0 4px;padding:7px 10px;
+  background:var(--card);border:1px solid var(--border);border-radius:9px;color:var(--text-faint);
+}
+.search input{border:0;background:transparent;color:var(--text);font:inherit;font-size:12.5px;outline:0;width:100%}
+.task-item{
+  padding:7px 9px;border-radius:9px;cursor:pointer;display:flex;gap:9px;align-items:flex-start;
+  transition:background .15s ease;margin-bottom:2px;position:relative;
+}
+.task-item:hover{background:var(--card-hi)}
+.task-item.active{background:var(--accent-soft)}
+.task-item.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2.5px;border-radius:3px;background:var(--accent)}
+.t-dot{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none}
+.t-dot.run{background:var(--blue);animation:pulse 1.6s infinite}
+.t-dot.done{background:var(--green)}
+.t-dot.fail{background:var(--red)}
+.t-dot.wait{background:var(--orange)}
+.task-item .meta{min-width:0}
+.task-item .name{font-size:12.8px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-item.active .name{font-weight:600;color:var(--accent)}
+.task-item .sub{font-size:11px;color:var(--text-faint)}
+.agent-row{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;cursor:pointer;transition:background .15s}
+.agent-row:hover{background:var(--card-hi)}
+.agent-row .a-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.agent-row .a-dot.run{background:var(--green);animation:pulse 1.4s infinite}
+.agent-row .a-dot.idle{background:var(--text-faint);opacity:.5}
+.agent-row .a-dot.wait{background:var(--orange);animation:pulse 1.4s infinite}
+.agent-row span{font-size:12.5px;color:var(--text-dim)}
+.agent-row span b{color:var(--text);font-weight:600}
+.file-row{display:flex;align-items:center;gap:8px;padding:5px 9px;border-radius:7px;font-family:var(--mono);font-size:11.5px;color:var(--text-dim);cursor:pointer}
+.file-row:hover{background:var(--card-hi);color:var(--text)}
+.file-row em{font-style:normal;color:var(--text-faint);margin-left:auto;font-size:10.5px}
+.tool-row{display:flex;align-items:center;gap:9px;padding:5.5px 9px;border-radius:8px;cursor:pointer}
+.tool-row:hover{background:var(--card-hi)}
+.tool-row .tname{font-family:var(--mono);font-size:11.5px;flex:1}
+.switch{width:28px;height:16px;border-radius:99px;background:var(--border);position:relative;transition:background .2s;flex:none}
+.switch::after{content:"";position:absolute;width:12px;height:12px;border-radius:50%;background:var(--text-dim);top:2px;left:2px;transition:all .2s ease}
+.switch.on{background:var(--green)}
+.switch.on::after{left:14px;background:#fff}
+.side-foot{padding:10px;border-top:1px solid var(--border);display:flex;gap:8px}
+.btn{
+  border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit;font-size:12.5px;
+  padding:7px 12px;border-radius:9px;cursor:pointer;transition:all .18s ease;font-weight:500;
+}
+.btn:hover{background:var(--card-hi)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.ghost-danger{color:var(--red);border-color:color-mix(in srgb,var(--red) 35%,transparent);background:var(--red-soft)}
+.btn.sm{padding:4.5px 10px;font-size:11.5px;border-radius:7px}
+.side-foot .btn{flex:1}
+
+/* ============ Center Workspace ============ */
+.workspace{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.view-tabs{
+  display:flex;align-items:center;gap:4px;padding:8px 14px 0;border-bottom:1px solid var(--border);
+  background:var(--panel);
+}
+.vtab{
+  border:0;background:transparent;color:var(--text-dim);font:inherit;font-size:12.8px;font-weight:500;
+  padding:7px 14px 9px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color .15s;white-space:nowrap;
+}
+.vtab:hover{color:var(--text)}
+.vtab.on{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.vtab .n{font-size:10.5px;background:var(--card-hi);border-radius:99px;padding:1px 6px;margin-left:5px;color:var(--text-dim)}
+.view{flex:1;overflow-y:auto;display:none;min-height:0}
+.view.on{display:block}
+.pad{padding:18px 22px 26px;max-width:860px;margin:0 auto}
+
+/* --- Plan Surface --- */
+.plan-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.plan-head h2{font-size:15px;font-weight:700}
+.plan-head .hint{font-size:12px;color:var(--text-faint)}
+.step{
+  display:flex;gap:12px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:9px;
+  transition:border-color .2s,transform .2s,box-shadow .2s;cursor:grab;position:relative;
+}
+.step:hover{border-color:var(--text-faint);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.step.waiting{border-color:color-mix(in srgb,var(--orange) 55%,transparent);background:color-mix(in srgb,var(--orange-soft) 55%,var(--card))}
+.step.running{border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
+.step-num{
+  width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;
+  font-family:var(--mono);font-size:12px;font-weight:700;
+  background:var(--card-hi);color:var(--text-dim);border:1px solid var(--border);
+}
+.step.done .step-num{background:var(--green-soft);color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent)}
+.step.running .step-num{background:var(--blue-soft);color:var(--blue);border-color:color-mix(in srgb,var(--blue) 35%,transparent)}
+.step.waiting .step-num{background:var(--orange-soft);color:var(--orange);border-color:color-mix(in srgb,var(--orange) 40%,transparent)}
+.step-body{flex:1;min-width:0}
+.step-title{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.step-title .tag{
+  font-size:10.5px;font-weight:700;padding:1.5px 8px;border-radius:99px;letter-spacing:.02em;
+}
+.tag.done{background:var(--green-soft);color:var(--green)}
+.tag.running{background:var(--blue-soft);color:var(--blue)}
+.tag.pending{background:var(--card-hi);color:var(--text-faint)}
+.tag.waiting{background:var(--orange-soft);color:var(--orange)}
+.step-detail{font-size:12.3px;color:var(--text-dim);margin-top:3px}
+.step-sub{font-size:11.5px;color:var(--text-faint);margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}
+.step-sub .mono{font-family:var(--mono);font-size:11px}
+.grip{color:var(--text-faint);opacity:0;transition:opacity .15s;font-size:13px;margin-top:5px}
+.step:hover .grip{opacity:.7}
+
+/* --- Conversation --- */
+.msg{margin-bottom:18px;display:flex;gap:11px}
+.msg .who{
+  width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;
+  font-size:12px;font-weight:700;
+}
+.msg.user .who{background:var(--card-hi);border:1px solid var(--border);color:var(--text-dim)}
+.msg.agent .who{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff}
+.bubble{min-width:0;flex:1}
+.bubble .head{font-size:12px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.bubble .head .t{font-weight:500;color:var(--text-faint);font-size:11px}
+.msg.user .bubble .body{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;border-top-left-radius:4px;
+  padding:10px 14px;font-size:13.5px;
+}
+.think{margin:6px 0 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel);overflow:hidden}
+.think summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+  padding:8px 12px;font-size:12px;color:var(--text-dim);user-select:none;
+}
+.think summary::-webkit-details-marker{display:none}
+.think summary:hover{color:var(--text)}
+.think summary .arr{transition:transform .2s;font-size:10px}
+.think[open] summary .arr{transform:rotate(90deg)}
+.think .tcontent{padding:2px 14px 12px;font-size:12.5px;color:var(--text-dim);border-top:1px dashed var(--border-soft);padding-top:10px}
+.think .tcontent p{margin-bottom:6px}
+
+.toolcard{
+  border:1px solid var(--border);border-radius:11px;background:var(--panel);
+  margin:8px 0;overflow:hidden;
+}
+.toolcard .tc-head{
+  display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;user-select:none;
+}
+.toolcard .tc-head:hover{background:var(--card-hi)}
+.tc-icon{
+  width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:11px;flex:none;
+  background:var(--purple-soft);color:var(--purple);font-family:var(--mono);font-weight:700;
+}
+.tc-icon.ok{background:var(--green-soft);color:var(--green)}
+.tc-icon.err{background:var(--red-soft);color:var(--red)}
+.tc-name{font-family:var(--mono);font-size:12px;font-weight:600}
+.tc-args{font-family:var(--mono);font-size:11px;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-dur{margin-left:auto;font-size:10.5px;color:var(--text-faint);font-family:var(--mono);flex:none}
+.tc-body{border-top:1px solid var(--border-soft);padding:9px 12px;font-family:var(--mono);font-size:11.5px;color:var(--text-dim)}
+.tc-body .k{color:var(--blue)}
+.tc-body .s{color:var(--green)}
+.tc-body .num{color:var(--orange)}
+.tc-body .up{color:var(--red);font-weight:700}
+.tc-body .down{color:var(--green);font-weight:700}
+
+/* verdict card */
+.verdict{
+  border-radius:var(--radius-lg);border:1px solid color-mix(in srgb,var(--orange) 45%,transparent);
+  background:color-mix(in srgb,var(--orange-soft) 60%,var(--card));padding:14px 16px;margin:10px 0;
+}
+.verdict.suspect{border-color:color-mix(in srgb,var(--red) 40%,transparent);background:color-mix(in srgb,var(--red-soft) 45%,var(--card))}
+.verdict-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.verdict-badge{
+  font-size:13px;font-weight:800;padding:3px 12px;border-radius:9px;
+  background:var(--orange-soft);color:var(--orange);border:1px solid color-mix(in srgb,var(--orange) 40%,transparent);
+}
+.verdict.suspect .verdict-badge{background:var(--red-soft);color:var(--red);border-color:color-mix(in srgb,var(--red) 40%,transparent)}
+.verdict-header .src{font-size:11.5px;color:var(--text-faint);margin-left:auto;font-family:var(--mono)}
+.verdict ul{margin:6px 0 0 18px;font-size:12.8px;color:var(--text-dim)}
+.verdict li{margin-bottom:4px}
+.verdict li b{color:var(--text)}
+.conf-inline{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--text-dim)}
+.conf-inline .bar{flex:1;max-width:220px;height:5px;border-radius:5px;background:var(--border);overflow:hidden}
+.conf-inline .bar i{display:block;height:100%;width:92%;border-radius:5px;background:linear-gradient(90deg,var(--green),var(--orange))}
+
+/* confidence side-strip on agent outputs */
+.cstrip{width:3px;border-radius:3px;background:linear-gradient(180deg,var(--green),var(--orange));flex:none;align-self:stretch;opacity:.85}
+
+/* --- Composer --- */
+.composer{padding:12px 22px 16px;background:linear-gradient(transparent,var(--bg) 30%)}
+.composer-inner{
+  max-width:860px;margin:0 auto;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:10px 12px;box-shadow:var(--shadow);
+  transition:border-color .2s;
+}
+.composer-inner:focus-within{border-color:var(--accent)}
+.composer textarea{
+  width:100%;border:0;background:transparent;resize:none;outline:0;color:var(--text);
+  font:inherit;font-size:13.5px;min-height:44px;
+}
+.composer-bar{display:flex;align-items:center;gap:6px;margin-top:4px}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-dim);
+  border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:4px 9px;cursor:pointer;
+  transition:all .15s;
+}
+.chip:hover{color:var(--text);background:var(--card-hi)}
+.send{
+  margin-left:auto;border:0;background:var(--accent);color:#fff;border-radius:9px;
+  width:34px;height:30px;cursor:pointer;font-size:14px;transition:filter .15s;
+}
+.send:hover{filter:brightness(1.12)}
+
+/* --- Artifacts view --- */
+.art-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.art-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:14px;cursor:pointer;transition:all .2s;
+}
+.art-card:hover{border-color:var(--text-faint);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.art-ico{font-size:20px;margin-bottom:8px}
+.art-card h4{font-size:13px;margin-bottom:3px}
+.art-card p{font-size:11.5px;color:var(--text-faint)}
+.art-card .art-meta{margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--text-faint);display:flex;gap:10px}
+
+/* --- Trajectory view --- */
+.traj{position:relative;padding-left:22px}
+.traj::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.traj-item{position:relative;padding:0 0 16px}
+.traj-item::before{
+  content:"";position:absolute;left:-19px;top:5px;width:10px;height:10px;border-radius:50%;
+  background:var(--card);border:2.5px solid var(--text-faint);
+}
+.traj-item.ok::before{border-color:var(--green)}
+.traj-item.err::before{border-color:var(--red)}
+.traj-item.run::before{border-color:var(--blue)}
+.traj-item .tt{font-size:13px;font-weight:600}
+.traj-item .td{font-size:12px;color:var(--text-dim);margin-top:2px}
+.traj-item .tm{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);margin-top:3px;display:flex;gap:14px}
+
+/* --- Build Canvas --- */
+.canvas-wrap{display:grid;grid-template-columns:minmax(280px,340px) 1fr;height:100%}
+.canvas-left{border-right:1px solid var(--border);overflow-y:auto;background:var(--bg)}
+.canvas-left .pad{padding:16px}
+.canvas-right{display:flex;flex-direction:column;background:var(--panel);min-width:0}
+.canvas-chrome{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);
+}
+.cdot{width:10px;height:10px;border-radius:50%}
+.cdot.r{background:#ff5f57}.cdot.y{background:#febc2e}.cdot.g{background:#28c840}
+.urlbox{
+  flex:1;margin:0 8px;background:var(--card);border:1px solid var(--border);border-radius:7px;
+  padding:3.5px 10px;font-family:var(--mono);font-size:11px;color:var(--text-dim);
+}
+.canvas-frame{flex:1;overflow-y:auto;background:var(--bg)}
+.report{max-width:640px;margin:0 auto;padding:26px 28px}
+.report h3{font-size:17px;margin-bottom:4px}
+.report .rsub{font-size:12px;color:var(--text-faint);margin-bottom:18px;font-family:var(--mono)}
+.report table{width:100%;border-collapse:collapse;font-size:12.3px;margin-top:8px}
+.report th{
+  text-align:left;padding:7px 9px;color:var(--text-faint);font-weight:600;font-size:11px;
+  border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.05em;
+}
+.report td{padding:8px 9px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+.vchip{font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.vchip.trust{background:var(--green-soft);color:var(--green)}
+.vchip.suspect{background:var(--red-soft);color:var(--red)}
+.vchip.unknown{background:var(--card-hi);color:var(--text-dim)}
+.vchip.pending{background:var(--orange-soft);color:var(--orange)}
+
+/* ============ Right Panel ============ */
+.rightpanel{
+  background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;
+  min-width:0;
+}
+.rp-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 6px}
+.rtab{
+  flex:1;border:0;background:transparent;color:var(--text-dim);font:inherit;font-size:11.8px;font-weight:600;
+  padding:10px 2px 9px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  position:relative;transition:color .15s;white-space:nowrap;
+}
+.rtab:hover{color:var(--text)}
+.rtab.on{color:var(--text);border-bottom-color:var(--accent)}
+.rtab .n{
+  background:var(--orange);color:#1a1a1e;font-size:9.5px;font-weight:800;border-radius:99px;
+  padding:0 5px;margin-left:3px;
+}
+.rp-view{flex:1;overflow-y:auto;display:none;padding:12px}
+.rp-view.on{display:block}
+
+/* activity stream */
+.act{position:relative;padding-left:20px;padding-bottom:13px}
+.act::before{content:"";position:absolute;left:5px;top:8px;bottom:-2px;width:1.5px;background:var(--border-soft)}
+.act:last-child::before{display:none}
+.act::after{
+  content:"";position:absolute;left:1px;top:5px;width:9px;height:9px;border-radius:50%;
+  background:var(--text-faint);opacity:.5;
+}
+.act.ok::after{background:var(--green);opacity:1}
+.act.err::after{background:var(--red);opacity:1}
+.act.run::after{background:var(--blue);opacity:1;animation:pulse 1.4s infinite}
+.act.wait::after{background:var(--orange);opacity:1}
+.act .at{font-size:10.5px;color:var(--text-faint);font-family:var(--mono)}
+.act .an{font-size:12.3px;margin-top:1px}
+.act .an b{font-weight:600}
+.act .ad{font-size:11.3px;color:var(--text-faint);font-family:var(--mono);word-break:break-all;cursor:pointer}
+.act .ad:hover{color:var(--text-dim)}
+.act .afull{
+  display:none;margin-top:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:8px;font-family:var(--mono);font-size:10.8px;color:var(--text-dim);white-space:pre-wrap;
+}
+.act.open .afull{display:block;animation:fadein .25s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.new-flash{animation:flashin .6s ease}
+@keyframes flashin{0%{opacity:0;transform:translateY(-6px);background:var(--accent-soft)}100%{opacity:1}}
+
+/* approval queue */
+.appr-card{
+  background:var(--card);border:1px solid color-mix(in srgb,var(--orange) 35%,var(--border));
+  border-radius:var(--radius-lg);padding:12px;margin-bottom:10px;transition:all .3s ease;
+}
+.appr-card.leaf{opacity:0;transform:translateX(24px);height:0;padding:0;margin:0;border-width:0;overflow:hidden}
+.appr-top{display:flex;gap:8px;align-items:flex-start}
+.appr-check{width:15px;height:15px;accent-color:var(--orange);margin-top:3px;cursor:pointer}
+.appr-title{font-size:12.8px;font-weight:600;flex:1}
+.appr-desc{font-size:11.8px;color:var(--text-dim);margin-top:4px;padding-left:23px}
+.appr-conf{display:flex;align-items:center;gap:8px;margin:9px 0 0 23px;font-size:11px;color:var(--text-dim)}
+.appr-conf .bar{flex:1;height:5px;border-radius:5px;background:var(--border);overflow:hidden}
+.appr-conf .bar i{display:block;height:100%;border-radius:5px}
+.appr-actions{display:flex;gap:7px;margin:10px 0 0 23px}
+.appr-actions .btn{flex:1;padding:5.5px 0;font-size:11.8px}
+.batchbar{
+  display:none;align-items:center;gap:8px;background:var(--card-hi);border:1px solid var(--border);
+  border-radius:9px;padding:7px 10px;margin-bottom:10px;font-size:11.8px;
+}
+.batchbar.show{display:flex;animation:fadein .2s ease}
+.batchbar .btn{margin-left:auto}
+
+/* kanban */
+.kb{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+.kb-col{flex:1;min-width:128px}
+.kb-col h5{
+  font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);
+  padding:4px 6px 8px;display:flex;align-items:center;gap:6px;
+}
+.kb-col h5 i{width:7px;height:7px;border-radius:2px;flex:none}
+.kb-card{
+  background:var(--card);border:1px solid var(--border);border-left-width:3px;border-radius:9px;
+  padding:8px 9px;margin-bottom:7px;font-size:11.8px;cursor:grab;transition:all .18s;
+}
+.kb-card:hover{transform:translateY(-1px);border-color:var(--text-faint)}
+.kb-card .km{font-size:10.3px;color:var(--text-faint);margin-top:4px;display:flex;justify-content:space-between}
+.kb-bl{background:var(--card);border-left-color:var(--text-faint)}
+.kb-do{border-left-color:var(--blue)}
+.kb-re{border-left-color:var(--orange)}
+.kb-dn{border-left-color:var(--green)}
+
+/* confidence panel */
+.conf-scale{display:flex;height:8px;border-radius:6px;overflow:hidden;margin-bottom:12px}
+.conf-scale i{flex:1}
+.conf-row{margin-bottom:13px}
+.conf-row .cr-h{display:flex;justify-content:space-between;font-size:12.2px;margin-bottom:5px}
+.conf-row .cr-h b{font-weight:600}
+.conf-row .cr-h span{font-family:var(--mono);font-weight:700}
+.conf-row .track{height:7px;border-radius:6px;background:var(--border);overflow:hidden}
+.conf-row .track i{display:block;height:100%;border-radius:6px;transition:width .8s cubic-bezier(.22,1,.36,1)}
+.conf-note{font-size:11.3px;color:var(--text-faint);border-top:1px dashed var(--border);padding-top:10px;margin-top:4px}
+.conf-note b{color:var(--orange)}
+
+/* toast */
+#toast{
+  position:fixed;bottom:26px;left:50%;transform:translate(-50%,80px);opacity:0;
+  background:var(--card-hi);border:1px solid var(--border);color:var(--text);
+  padding:9px 18px;border-radius:10px;font-size:12.8px;box-shadow:var(--shadow);
+  transition:all .35s cubic-bezier(.22,1,.36,1);z-index:99;pointer-events:none;
+}
+#toast.show{transform:translate(-50%,0);opacity:1}
+
+/* approval highlight mode */
+body.approval-focus .step.waiting{box-shadow:0 0 0 3px var(--orange-soft),0 0 24px rgba(245,158,11,.18)}
+
+@media (max-width:1180px){.shell{grid-template-columns:var(--sidebar-w) 1fr}.rightpanel{display:none}}
+@media (max-width:860px){.shell{grid-template-columns:52px 1fr}body.rail-on .shell{grid-template-columns:52px 1fr}.modes,.autonomy{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP BAR ================= -->
+<header class="topbar">
+  <button class="icon-btn" id="railBtn" title="折叠侧栏">☰</button>
+  <div class="logo">
+    <span class="logo-mark">核</span>
+    <span>核真 <small>Veritas</small></span>
+  </div>
+
+  <div class="task-title" contenteditable="true" spellcheck="false" title="点击编辑任务名">
+    <h1>市场传闻核查 · 批次 #A（5 条）</h1>
+    <span class="pencil">✎</span>
+  </div>
+
+  <div class="status-chip">
+    <span class="badge"><span class="dot"></span>Running · 3/5</span>
+    <div class="progress" title="整体进度"><i id="progFill"></i></div>
+  </div>
+
+  <div class="top-right">
+    <div class="modes" id="modes">
+      <button class="on">Standard</button><button>Code</button><button>Creator</button><button>Minimal</button>
+    </div>
+    <div class="autonomy" title="自主程度：Suggest only → Act with approval → Fully autonomous">
+      <span>Suggest</span>
+      <div class="dial">
+        <div class="track"></div>
+        <input type="range" id="autoDial" min="0" max="2" step="1" value="1">
+      </div>
+      <span id="autoLabel">需审批执行</span>
+    </div>
+    <button class="escaped" id="pauseBtn">⏸ 暂停 / 接管</button>
+    <button class="icon-btn" id="themeBtn" title="切换浅色 / 深色">🌙</button>
+    <div class="avatar" title="Paradox">P</div>
+  </div>
+</header>
+
+<div class="shell">
+  <!-- ================= LEFT SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="side-scroll">
+      <div class="search">🔍<input placeholder="搜索任务 / Agent…"></div>
+
+      <div class="side-sec">
+        <div class="side-label">Tasks <b>4</b></div>
+        <div class="task-item active">
+          <span class="t-dot run"></span>
+          <div class="meta"><div class="name">市场传闻核查 · 批次 #A</div><div class="sub">今天 · 进行中 3/5</div></div>
+        </div>
+        <div class="task-item">
+          <span class="t-dot done"></span>
+          <div class="meta"><div class="name">澜星电子异动快查</div><div class="sub">今天 · 已完成</div></div>
+        </div>
+        <div class="task-item">
+          <span class="t-dot done"></span>
+          <div class="meta"><div class="name">蓝湾生物公告深度核查</div><div class="sub">本周 · 已完成</div></div>
+        </div>
+        <div class="task-item">
+          <span class="t-dot fail"></span>
+          <div class="meta"><div class="name">板块联动传闻扫描</div><div class="sub">本周 · 数据源超时</div></div>
+        </div>
+        <div class="side-label" style="padding-top:8px">★ 收藏</div>
+        <div class="task-item">
+          <span class="t-dot wait"></span>
+          <div class="meta"><div class="name">核查规则库维护</div><div class="sub">等待人工复核</div></div>
+        </div>
+      </div>
+
+      <div class="side-sec">
+        <div class="side-label">Agents</div>
+        <div class="agent-row"><span class="a-dot run"></span><span><b>核查规划主 Agent</b> · running</span></div>
+        <div class="agent-row"><span class="a-dot run"></span><span>行情查询器</span></div>
+        <div class="agent-row"><span class="a-dot wait"></span><span>公告检索器 · 等待批准</span></div>
+        <div class="agent-row"><span class="a-dot idle"></span><span>资讯扫描器</span></div>
+        <div class="agent-row"><span class="a-dot idle"></span><span>交叉验证器</span></div>
+      </div>
+
+      <div class="side-sec">
+        <div class="side-label">Workspace</div>
+        <div class="file-row">📄 RUMORS.json <em>5 条</em></div>
+        <div class="file-row">🐍 check_rumor.py <em>2.1 KB</em></div>
+        <div class="file-row">📊 工具数据快照/ <em>6 家</em></div>
+        <div class="file-row">📝 核查报告.md <em>草稿</em></div>
+        <div class="file-row">🗂 AI协作记录.md <em>导出</em></div>
+      </div>
+
+      <div class="side-sec">
+        <div class="side-label">Tools / Plugins</div>
+        <div class="tool-row"><span class="switch on"></span><span class="tname">get_quote</span></div>
+        <div class="tool-row"><span class="switch on"></span><span class="tname">get_announcements</span></div>
+        <div class="tool-row"><span class="switch on"></span><span class="tname">get_news</span></div>
+        <div class="tool-row"><span class="switch"></span><span class="tname">web_search（外部）</span></div>
+        <div class="tool-row"><span class="switch"></span><span class="tname">龙虎榜数据</span></div>
+      </div>
+    </div>
+    <div class="side-foot">
+      <button class="btn primary" onclick="toast('已创建新核查任务')">＋ 新任务</button>
+      <button class="btn" onclick="toast('已归档 2 个已完成任务')">归档</button>
+    </div>
+  </aside>
+
+  <!-- ================= CENTER ================= -->
+  <main class="workspace">
+    <nav class="view-tabs" id="vtabs">
+      <button class="vtab on" data-v="workbench">工作台</button>
+      <button class="vtab" data-v="plan">Plan <span class="n">7</span></button>
+      <button class="vtab" data-v="artifacts">Artifacts <span class="n">3</span></button>
+      <button class="vtab" data-v="trajectory">Trajectory</button>
+      <button class="vtab" data-v="canvas">Build Canvas</button>
+      <div style="flex:1"></div>
+      <button class="vtab" id="tiledBtn" title="多 Agent 分屏（Tiled Layout）">⊞ Tiled</button>
+    </nav>
+
+    <!-- ===== Workbench: Plan + Conversation ===== -->
+    <section class="view on" id="v-workbench">
+      <div class="pad">
+        <div class="plan-head">
+          <h2>执行计划 <span class="hint" style="font-weight:500">· 可拖拽排序，点击步骤展开细节</span></h2>
+          <button class="btn sm" onclick="toast('计划已解锁编辑，可拖拽调整顺序')">✏️ 编辑计划</button>
+        </div>
+
+        <div class="step done">
+          <span class="grip">⠿</span><div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">拆解 5 条传闻，识别涉及公司 <span class="tag done">Done</span></div>
+            <div class="step-detail">共识别出 6 家公司；传闻③「计算板块大跌」涉及青云数科 + 澜星电子两家，需逐家查证。</div>
+          </div>
+        </div>
+
+        <div class="step done">
+          <span class="grip">⠿</span><div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">传闻① 恒润科技「大资金进场」 <span class="tag done">Done</span></div>
+            <div class="step-detail">行情确认涨停 → 结合龙虎榜资讯与异动公告，判定：<b style="color:var(--green)">可信（有数据支撑）</b>。</div>
+            <div class="step-sub"><span class="mono">get_quote ✓</span><span class="mono">get_news ✓</span><span class="mono">置信度 96%</span></div>
+          </div>
+        </div>
+
+        <div class="step done">
+          <span class="grip">⠿</span><div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">传闻② 蓝湾生物「临床失败」 <span class="tag done">Done</span></div>
+            <div class="step-detail">公告与传闻直接矛盾 → 判定：<b style="color:var(--red)">存疑（倾向不实）</b>，详见下方对话。</div>
+          </div>
+        </div>
+
+        <div class="step waiting">
+          <span class="grip">⠿</span><div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title">传闻③ 计算板块「集体大跌」 <span class="tag waiting">Needs Approval</span></div>
+            <div class="step-detail">本地数据只能覆盖涨跌幅，无法确认「都跌超 5 个点」的精确表述 —— Agent 请求接入外部龙虎榜数据源。</div>
+            <div class="step-sub"><span class="mono" style="color:var(--orange)">⏸ 等待审批 · 置信度 38%</span></div>
+          </div>
+        </div>
+
+        <div class="step running">
+          <span class="grip">⠿</span><div class="step-num">5</div>
+          <div class="step-body">
+            <div class="step-title">传闻④ 睿驰半导体「国资重组」 <span class="tag running">Running</span></div>
+            <div class="step-detail">公告仅查到业绩预告，无重组信息；正在交叉验证「无法核实」的结论边界。</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <span class="grip">⠿</span><div class="step-num">6</div>
+          <div class="step-body">
+            <div class="step-title">传闻⑤ 「上月的储能新股破发」 <span class="tag pending">Pending</span></div>
+            <div class="step-detail">模糊指代消解：定位到新湾储能 → 比对上市首日行情。</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <span class="grip">⠿</span><div class="step-num">7</div>
+          <div class="step-body">
+            <div class="step-title">汇总结构化核查报告（判断 + 依据 + 数据来源） <span class="tag pending">Pending</span></div>
+            <div class="step-detail">产出 核查报告.md 与 传闻核查表.csv，供人工复核。</div>
+          </div>
+        </div>
+
+        <div style="height:18px"></div>
+        <div class="plan-head"><h2>对话流</h2><span class="hint">Agent 思考与工具调用全程可见</span></div>
+
+        <div class="msg user">
+          <div class="who">你</div>
+          <div class="bubble">
+            <div class="head">Paradox <span class="t">14:31</span></div>
+            <div class="body">朋友圈说蓝湾生物的新药三期临床失败了，股价要崩。帮我查证一下这条。</div>
+          </div>
+        </div>
+
+        <div class="msg agent">
+          <div class="who">V</div>
+          <div class="bubble">
+            <div class="head">核查规划主 Agent <span class="t">14:31:52</span></div>
+            <details class="think">
+              <summary><span class="arr">▶</span> Thinking · 3.2s · 涉及公司 1 家，先查公告再比行情</summary>
+              <div class="tcontent">
+                <p>传闻核心主张：「三期临床失败」+「股价要崩」。这是可证伪的事实主张，优先级：公告 &gt; 资讯 &gt; 行情。</p>
+                <p>注意「涉及几家查几家」：本条只涉及蓝湾生物一家。若公告与传闻矛盾，需明确说「与公告矛盾」而非笼统判「可信」。</p>
+              </div>
+            </details>
+
+            <div class="toolcard">
+              <div class="tc-head" onclick="this.parentElement.classList.toggle('open')">
+                <span class="tc-icon ok">✓</span>
+                <span class="tc-name">get_announcements</span>
+                <span class="tc-args">("蓝湾生物")</span>
+                <span class="tc-dur">0.4s</span>
+              </div>
+              <div class="tc-body">→ ["<span class="s">2026-08-06 关于 LW-102 三期临床试验结果的公告：试验达到主要终点，公司将尽快推进上市申请。</span>"]</div>
+            </div>
+
+            <div class="toolcard">
+              <div class="tc-head" onclick="this.parentElement.classList.toggle('open')">
+                <span class="tc-icon ok">✓</span>
+                <span class="tc-name">get_quote</span>
+                <span class="tc-args">("蓝湾生物")</span>
+                <span class="tc-dur">0.2s</span>
+              </div>
+              <div class="tc-body">→ { code: <span class="k">"688321"</span>, price: <span class="num">55.60</span>, change_pct: <span class="down">+2.4%</span>, date: <span class="k">"2026-08-07"</span> }</div>
+            </div>
+
+            <div class="verdict suspect">
+              <div class="verdict-header">
+                <span class="verdict-badge">存疑 · 倾向不实</span>
+                <span class="src">置信度 92%</span>
+              </div>
+              <ul>
+                <li><b>依据：</b>公司 2026-08-06 公告明确「LW-102 三期临床试验达到主要终点」，与传闻「临床失败」直接矛盾。</li>
+                <li><b>行情：</b>8-07 收盘 55.60 元、<b style="color:var(--green)">+2.4%</b>，未见「崩盘」迹象。</li>
+                <li><b>来源：</b>get_announcements("蓝湾生物") · get_quote("蓝湾生物")，数据日期 2026-08-07。</li>
+              </ul>
+              <div class="conf-inline"><span>高置信</span><div class="bar"><i></i></div><span>92%</span></div>
+            </div>
+
+            <div class="msg agent" style="margin:0">
+              <div class="bubble" style="padding-left:0">
+                <div class="body" style="font-size:13.2px;color:var(--text-dim)">
+                  这条传闻与官方公告直接矛盾，建议按「<b style="color:var(--red)">存疑（倾向不实）</b>」归档，并保留公告原文作为复核依据。已同步至核查报告草稿。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Plan view (standalone) ===== -->
+    <section class="view" id="v-plan">
+      <div class="pad">
+        <div class="plan-head"><h2>Plan · 独立编辑视图</h2><button class="btn sm" onclick="toast('步骤顺序已保存')">保存排序</button></div>
+        <p class="hint" style="color:var(--text-faint);font-size:12px;margin-bottom:12px">拖拽 ⠿ 调整执行顺序；右键步骤可插入 / 删除 / 转子任务。</p>
+        <div class="step"><span class="grip">⠿</span><div class="step-num">4</div><div class="step-body"><div class="step-title">传闻③ 计算板块「集体大跌」 <span class="tag waiting">Needs Approval</span></div><div class="step-detail">等待外部数据源审批，批准后自动继续。</div></div></div>
+        <div class="step"><span class="grip">⠿</span><div class="step-num">5</div><div class="step-body"><div class="step-title">传闻④ 睿驰半导体「国资重组」 <span class="tag running">Running</span></div></div></div>
+      </div>
+    </section>
+
+    <!-- ===== Artifacts ===== -->
+    <section class="view" id="v-artifacts">
+      <div class="pad">
+        <div class="plan-head"><h2>Artifacts · 产物</h2></div>
+        <div class="art-grid">
+          <div class="art-card" onclick="switchView('canvas')">
+            <div class="art-ico">📝</div><h4>核查报告.md</h4><p>5 条传闻 × 判断 / 依据 / 来源，草稿 v3</p>
+            <div class="art-meta"><span>4.2 KB</span><span>刚刚更新</span></div>
+          </div>
+          <div class="art-card" onclick="toast('已复制到剪贴板')">
+            <div class="art-ico">📊</div><h4>传闻核查表.csv</h4><p>结构化表格：company / verdict / evidence</p>
+            <div class="art-meta"><span>1.1 KB</span><span>2 分钟前</span></div>
+          </div>
+          <div class="art-card" onclick="toast('已打开 AI 协作记录')">
+            <div class="art-ico">🗂</div><h4>AI协作记录.md</h4><p>本次任务的完整人机协作过程导出</p>
+            <div class="art-meta"><span>12 KB</span><span>生成中…</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Trajectory ===== -->
+    <section class="view" id="v-trajectory">
+      <div class="pad">
+        <div class="plan-head"><h2>Trajectory · 完整轨迹</h2><button class="btn sm" onclick="toast('▶ 轨迹回放已开始')">▶ 回放</button></div>
+        <div class="traj">
+          <div class="traj-item ok"><div class="tt">任务创建 · 接收 5 条待核查传闻</div><div class="td">RUMORS.json → 拆解为 7 步执行计划</div><div class="tm"><span>14:30:12</span><span>plan tokens 1.2k</span></div></div>
+          <div class="traj-item ok"><div class="tt">步骤 1 完成 · 公司识别</div><div class="td">6 家公司，传闻③ 双公司拆分</div><div class="tm"><span>14:30:40</span><span>llm 1 次 · 工具 0 次</span></div></div>
+          <div class="traj-item ok"><div class="tt">传闻① 判定：可信（96%）</div><div class="td">get_quote ✓ get_news ✓ get_announcements ✓</div><div class="tm"><span>14:31:30</span><span>3 次工具调用 · 0.9s</span></div></div>
+          <div class="traj-item err"><div class="tt">get_announcements("青云数科") → 空列表</div><div class="td">无公告 ≠ 无事发生，标记「本地数据不足」</div><div class="tm"><span>14:32:04</span><span>空结果处理策略已记录</span></div></div>
+          <div class="traj-item run"><div class="tt">⏸ 悬起：请求接入外部龙虎榜数据源</div><div class="td">置信度 38%，低于自主执行阈值（60%）</div><div class="tm"><span>14:32:05</span><span>等待人工批准</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Build Canvas ===== -->
+    <section class="view" id="v-canvas" style="display:none">
+      <div class="canvas-wrap">
+        <div class="canvas-left">
+          <div class="pad">
+            <div class="plan-head"><h2 style="font-size:14px">报告生成对话</h2></div>
+            <div class="msg user" style="margin-bottom:12px"><div class="who">你</div><div class="bubble"><div class="body" style="font-size:12.8px">把已完成的核查结论排成一份可分享的报告页。</div></div></div>
+            <div class="toolcard"><div class="tc-head"><span class="tc-icon ok">✓</span><span class="tc-name">render_report</span><span class="tc-args">(report_v3)</span><span class="tc-dur">1.1s</span></div></div>
+            <p style="font-size:12.3px;color:var(--text-dim)">右侧实时预览已刷新。你可以继续用自然语言迭代样式，例如「把存疑的行用红色强调」。</p>
+          </div>
+        </div>
+        <div class="canvas-right">
+          <div class="canvas-chrome">
+            <span class="cdot r"></span><span class="cdot y"></span><span class="cdot g"></span>
+            <span class="urlbox">file:///workspace/核查报告.html</span>
+            <button class="btn sm" onclick="toast('预览已刷新')">↻</button>
+            <button class="btn sm" onclick="toast('全屏预览')">⛶</button>
+          </div>
+          <div class="canvas-frame">
+            <div class="report">
+              <h3>市场传闻核查报告 · 批次 #A</h3>
+              <div class="rsub">generated by 核真 Veritas · 2026-09-15 14:32 · 数据截至 2026-08-07</div>
+              <table>
+                <tr><th>#</th><th>传闻摘要</th><th>判断</th><th>关键依据</th></tr>
+                <tr><td>①</td><td>恒润科技涨停，大资金进场</td><td><span class="vchip trust">可信</span></td><td>涨停 +10.0%；龙虎榜两机构净买入</td></tr>
+                <tr><td>②</td><td>蓝湾生物三期临床失败</td><td><span class="vchip suspect">存疑</span></td><td>公告：试验达到主要终点，与传闻矛盾</td></tr>
+                <tr><td>③</td><td>计算板块集体大跌，两家跌超 5 点</td><td><span class="vchip pending">待审批</span></td><td>青云 -6.2% ✓ / 澜星 +1.3%，部分矛盾</td></tr>
+                <tr><td>④</td><td>睿驰半导体国资重组</td><td><span class="vchip unknown">无法核实</span></td><td>仅查到业绩预告，无重组信息</td></tr>
+                <tr><td>⑤</td><td>储能新股上市破发</td><td><span class="vchip trust">可信</span></td><td>新湾储能首日 -12.3%</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Composer ===== -->
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea placeholder="继续指挥 Agent… 输入 @ 呼出工具，Enter 发送"></textarea>
+        <div class="composer-bar">
+          <button class="chip">📎 附件</button>
+          <button class="chip" onclick="toast('@ 工具面板：get_quote / get_announcements / get_news / …')">@ 工具</button>
+          <button class="chip" onclick="toast('模式：Standard（可在顶部切换）')">⚡ Standard</button>
+          <button class="send" onclick="toast('已发送给核查规划主 Agent')">➤</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= RIGHT PANEL ================= -->
+  <aside class="rightpanel">
+    <div class="rp-tabs" id="rtabs">
+      <button class="rtab on" data-r="activity">Activity</button>
+      <button class="rtab" data-r="approvals">Approvals <span class="n" id="apprCount">2</span></button>
+      <button class="rtab" data-r="kanban">Kanban</button>
+      <button class="rtab" data-r="confidence">Confidence</button>
+    </div>
+
+    <!-- Activity -->
+    <div class="rp-view on" id="r-activity">
+      <div id="actList">
+        <div class="act run"><div class="at">14:32:05 · 行情查询器</div><div class="an">正在交叉验证传闻③</div><div class="ad" onclick="this.parentElement.classList.toggle('open')">get_quote("澜星电子") → …</div><div class="afull">{ "code":"301233", "price":12.06, "change_pct":1.3, "date":"2026-08-07" }</div></div>
+        <div class="act wait"><div class="at">14:32:05 · 公告检索器</div><div class="an"><b>等待批准</b>：接入外部龙虎榜数据源</div><div class="ad" onclick="this.parentElement.classList.toggle('open')">approval.required(web_search)…</div><div class="afull">理由：本地数据无法核实「都跌超 5 个点」；置信度 38% &lt; 阈值 60%</div></div>
+        <div class="act err"><div class="at">14:32:04 · 公告检索器</div><div class="an">查询结果为空（青云数科）</div><div class="ad" onclick="this.parentElement.classList.toggle('open')">get_announcements("青云数科") → []</div><div class="afull">空列表 → 不编造，标记「本地公告数据不足」</div></div>
+        <div class="act ok"><div class="at">14:31:30 · 行情查询器</div><div class="an">传闻① 判定完成：<b style="color:var(--green)">可信</b></div><div class="ad" onclick="this.parentElement.classList.toggle('open')">get_quote("恒润科技") → +10.0%</div><div class="afull">{ "price":42.18, "change_pct":10.0 } + 龙虎榜资讯佐证</div></div>
+        <div class="act ok"><div class="at">14:30:40 · 主 Agent</div><div class="an">计划生成完毕：7 步 · 6 家公司</div><div class="ad" onclick="this.parentElement.classList.toggle('open')">plan.create(7 steps)…</div><div class="afull">步骤 4 需外部数据 → 预注册审批请求</div></div>
+      </div>
+    </div>
+
+    <!-- Approvals -->
+    <div class="rp-view" id="r-approvals">
+      <div class="batchbar" id="batchBar">
+        已选 <b id="selN">0</b> 项
+        <button class="btn sm primary" onclick="batchApprove()">批量批准</button>
+      </div>
+
+      <div class="appr-card" data-appr>
+        <div class="appr-top">
+          <input type="checkbox" class="appr-check" onchange="selChange(this)">
+          <div class="appr-title">接入外部龙虎榜数据源，核实传闻③</div>
+        </div>
+        <div class="appr-desc">本地数据仅覆盖青云数科（-6.2% ✓），澜星电子实际 +1.3% 与「都跌超 5 点」矛盾；需要龙虎榜席位数据补全证据链。</div>
+        <div class="appr-conf"><span>置信度</span><div class="bar"><i style="width:38%;background:linear-gradient(90deg,var(--red),var(--orange))"></i></div><b style="color:var(--orange)">38%</b></div>
+        <div class="appr-actions">
+          <button class="btn sm primary" onclick="approve(this,'传闻③ 已批准，继续执行')">批准</button>
+          <button class="btn sm ghost-danger" onclick="reject(this,'已拒绝：传闻③ 将按「无法核实」归档')">拒绝</button>
+          <button class="btn sm" onclick="toast('已打开编辑器：可修改查询范围')">编辑</button>
+        </div>
+      </div>
+
+      <div class="appr-card" data-appr>
+        <div class="appr-top">
+          <input type="checkbox" class="appr-check" onchange="selChange(this)">
+          <div class="appr-title">将澜星电子标为「与传闻矛盾」并写入报告</div>
+        </div>
+        <div class="appr-desc">澜星电子 8-07 实际上涨 +1.3%，直接推翻「跌超 5 个点」的说法，将写入核查报告第 ③ 条依据。</div>
+        <div class="appr-conf"><span>置信度</span><div class="bar"><i style="width:81%;background:linear-gradient(90deg,var(--orange),var(--green))"></i></div><b style="color:var(--green)">81%</b></div>
+        <div class="appr-actions">
+          <button class="btn sm primary" onclick="approve(this,'结论已写入核查报告')">批准</button>
+          <button class="btn sm ghost-danger" onclick="reject(this,'已拒绝，保留人工判断占位')">拒绝</button>
+          <button class="btn sm" onclick="toast('已打开编辑器')">编辑</button>
+        </div>
+      </div>
+
+      <p style="font-size:11.3px;color:var(--text-faint);padding:4px 4px 0">低置信度操作会自动进入此队列；你也可在顶部把自主程度调到「完全自主」跳过审批。</p>
+    </div>
+
+    <!-- Kanban -->
+    <div class="rp-view" id="r-kanban">
+      <div class="kb">
+        <div class="kb-col"><h5><i style="background:var(--text-faint)"></i>Backlog</h5>
+          <div class="kb-card kb-bl">传闻④ 重组查证<div class="km"><span>睿驰半导体</span><span>P5</span></div></div>
+          <div class="kb-card kb-bl">传闻⑤ 破发确认<div class="km"><span>新湾储能</span><span>P6</span></div></div>
+        </div>
+        <div class="kb-col"><h5><i style="background:var(--blue)"></i>Doing</h5>
+          <div class="kb-card kb-do">传闻③ 板块大跌<div class="km"><span>2 家公司</span><span>⏸ 审批</span></div></div>
+        </div>
+        <div class="kb-col"><h5><i style="background:var(--orange)"></i>Review</h5>
+          <div class="kb-card kb-re">传闻② 临床失败<div class="km"><span>存疑 92%</span><span>待复核</span></div></div>
+        </div>
+        <div class="kb-col"><h5><i style="background:var(--green)"></i>Done</h5>
+          <div class="kb-card kb-dn">传闻① 涨停<div class="km"><span>可信 96%</span></div></div>
+          <div class="kb-card kb-dn">公司识别拆解<div class="km"><span>6 家</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confidence -->
+    <div class="rp-view" id="r-confidence">
+      <div class="conf-scale">
+        <i style="background:var(--red)"></i><i style="background:var(--orange)"></i><i style="background:#d9d94f"></i><i style="background:var(--green)"></i>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text-faint);margin:-8px 0 14px"><span>0 无法核实</span><span>100 已证实</span></div>
+
+      <div class="conf-row"><div class="cr-h"><b>传闻① 恒润涨停</b><span style="color:var(--green)">96%</span></div><div class="track"><i style="width:96%;background:var(--green)"></i></div></div>
+      <div class="conf-row"><div class="cr-h"><b>传闻② 临床失败（矛盾）</b><span style="color:var(--green)">92%</span></div><div class="track"><i style="width:92%;background:var(--green)"></i></div></div>
+      <div class="conf-row"><div class="cr-h"><b>传闻③ 板块齐跌</b><span style="color:var(--orange)">38%</span></div><div class="track"><i style="width:38%;background:linear-gradient(90deg,var(--red),var(--orange))"></i></div></div>
+      <div class="conf-row"><div class="cr-h"><b>传闻④ 国资重组</b><span style="color:var(--red)">12%</span></div><div class="track"><i style="width:12%;background:var(--red)"></i></div></div>
+
+      <div class="conf-note">
+        <b>规则：</b>置信度 ≥60% 且自主程度允许时自动执行；&lt;60% 自动进入 Approval Queue，并用 <b>橙色高亮</b> 对应步骤卡。
+        高置信度输出的侧边置信条几乎隐形，低置信度则清晰可见——视觉权重随风险递增。
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ---------- theme ---------- */
+const themeBtn=document.getElementById('themeBtn');
+themeBtn.onclick=()=>{
+  const d=document.documentElement;
+  const dark=d.getAttribute('data-theme')==='dark';
+  d.setAttribute('data-theme',dark?'light':'dark');
+  themeBtn.textContent=dark?'☀️':'🌙';
+};
+/* ---------- center view tabs ---------- */
+const views=['workbench','plan','artifacts','trajectory','canvas'];
+function switchView(v){
+  document.querySelectorAll('#vtabs .vtab[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  views.forEach(x=>document.getElementById('v-'+x).classList.toggle('on',x===v));
+}
+document.querySelectorAll('#vtabs .vtab[data-v]').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
+/* ---------- right panel tabs ---------- */
+document.querySelectorAll('#rtabs .rtab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#rtabs .rtab').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.rp-view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('r-'+b.dataset.r).classList.add('on');
+});
+/* ---------- modes / autonomy ---------- */
+document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#modes button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  toast('已切换到 '+b.textContent+' 模式');
+});
+const autoLabel=document.getElementById('autoLabel');
+const autoNames=['仅建议（Suggest only）','需审批执行（Act with approval）','完全自主（Fully autonomous）'];
+document.getElementById('autoDial').oninput=e=>{autoLabel.textContent=autoNames[e.target.value];};
+/* ---------- escape hatch ---------- */
+let paused=false;
+document.getElementById('pauseBtn').onclick=()=>{
+  paused=!paused;
+  const badge=document.querySelector('.badge');
+  badge.innerHTML=paused?'<span class="dot" style="background:var(--orange);animation:none"></span>已暂停 · 等待接管'
+                       :'<span class="dot"></span>Running · 3/5';
+  badge.style.color=paused?'var(--orange)':'var(--blue)';
+  document.getElementById('pauseBtn').textContent=paused?'▶ 恢复执行':'⏸ 暂停 / 接管';
+  toast(paused?'所有 Agent 已暂停，控制权已移交给你':'任务已恢复执行');
+};
+/* ---------- approvals ---------- */
+let apprLeft=2;
+function refreshCount(){const n=document.getElementById('apprCount');n.textContent=apprLeft;n.style.display=apprLeft?'':'none';}
+function leafCard(btn){const c=btn.closest('.appr-card');c.classList.add('leaf');apprLeft--;refreshCount();}
+function approve(btn,msg){leafCard(btn);toast('✓ '+msg);}
+function reject(btn,msg){leafCard(btn);toast('✕ '+msg);}
+function selChange(cb){
+  document.getElementById('selN').textContent=document.querySelectorAll('.appr-check:checked').length;
+  document.getElementById('batchBar').classList.toggle('show',document.querySelectorAll('.appr-check:checked').length>0);
+}
+function batchApprove(){
+  document.querySelectorAll('.appr-check:checked').forEach(cb=>{cb.closest('.appr-card').classList.add('leaf');apprLeft--;});
+  document.querySelectorAll('.appr-check:checked').forEach(cb=>cb.checked=false);
+  document.getElementById('batchBar').classList.remove('show');refreshCount();
+  toast('✓ 已批量批准，Agent 继续执行');
+}
+/* ---------- sidebar rail ---------- */
+document.getElementById('railBtn').onclick=()=>document.body.classList.toggle('rail-on');
+/* ---------- tiled layout ---------- */
+let tiled=false;
+document.getElementById('tiledBtn').onclick=()=>{
+  tiled=!tiled;
+  document.querySelector('.shell').style.gridTemplateColumns=tiled?'52px 1fr 1fr': '';
+  document.querySelector('.rightpanel').style.display=tiled?'block':'';
+  if(tiled){document.querySelector('.rightpanel').style.borderLeft='1px solid var(--border)';toast('⊞ 已开启 Tiled 分屏：主 Agent（左）· 监督面板（右）');}
+  else{toast('已退出分屏');}
+};
+/* ---------- live activity simulation ---------- */
+const feed=[
+  {cls:'ok', t:'行情查询器', n:'get_quote("新湾储能") → 首日 -12.3% 确认破发', d:'{ "price":18.75, "change_pct":-0.8 }'},
+  {cls:'ok', t:'主 Agent', n:'传闻⑤ 指代消解 → 新湾储能（301901）', d:'entity.resolve("上月的储能新股")'},
+  {cls:'run',t:'资讯扫描器', n:'扫描睿驰半导体近 30 天资讯…', d:'get_news("睿驰半导体") → 1 条（业绩预告）'},
+];
+let fi=0;
+setInterval(()=>{
+  if(paused)return;
+  const f=feed[fi++%feed.length];
+  const now=new Date();
+  const ts=now.toTimeString().slice(0,8);
+  const el=document.createElement('div');
+  el.className='act '+f.cls+' new-flash';
+  el.innerHTML='<div class="at">'+ts+' · '+f.t+'</div><div class="an">'+f.n+'</div><div class="ad" onclick="this.parentElement.classList.toggle(\'open\')">'+f.d+'</div><div class="afull">'+f.d+'</div>';
+  const list=document.getElementById('actList');
+  list.prepend(el);
+  while(list.children.length>9)list.lastChild.remove();
+},9000);
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2600);
+}
+/* ---------- task item switch ---------- */
+document.querySelectorAll('.task-item').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.task-item').forEach(x=>x.classList.remove('active'));t.classList.add('active');
+});
+</script>
+</body>
+</html>

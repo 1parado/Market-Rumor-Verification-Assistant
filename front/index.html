@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核真 Veritas · 传闻核查</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="mark">V</span>核真 Veritas</div>
+  <div class="top-right">
+    <input id="baseUrl" value="http://localhost:8000" title="后端地址" class="ep-input">
+    <button id="themeBtn" class="icon" title="切换主题">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 模型配置 -->
+  <section class="card">
+    <div class="card-head"><h2>模型配置</h2><span class="sub">自带 URL / Key，仅存本地</span></div>
+    <div class="form">
+      <label class="field"><span>协议</span>
+        <select id="protocol">
+          <option value="openai_chat">OpenAI Chat Completions</option>
+          <option value="openai_responses">OpenAI Responses</option>
+          <option value="anthropic">Anthropic Messages</option>
+        </select>
+      </label>
+      <label class="field span2"><span>Base URL</span><input id="apiBase" placeholder="https://api.openai.com/v1"></label>
+      <label class="field"><span>模型</span><input id="model" placeholder="gpt-4o"></label>
+      <label class="field"><span>API Key</span><input id="apiKey" type="password" placeholder="sk-..."></label>
+      <label class="field"><span>Temperature</span><input id="temperature" type="number" value="0" step="0.1" min="0" max="2"></label>
+      <div class="field span2 actions">
+        <button id="testBtn" class="primary">连通测试</button>
+        <span id="testStatus" class="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 传闻输入 -->
+  <section class="card">
+    <div class="card-head"><h2>传闻输入</h2><button id="loadRumors" class="ghost">载入样例</button></div>
+    <textarea id="rumorText" rows="3" placeholder="粘贴一条股市传闻…"></textarea>
+    <div id="samples" class="samples"></div>
+    <div class="actions">
+      <button id="checkBtn" class="primary" disabled>开始核查</button>
+      <span id="checkStatus" class="status"></span>
+    </div>
+  </section>
+
+  <!-- Agent 流式过程 -->
+  <section class="card" id="procCard" hidden>
+    <div class="card-head"><h2>Agent 过程</h2><span id="procStatus" class="sub"></span></div>
+    <div id="procLog" class="proc-log"></div>
+  </section>
+
+  <!-- 核查结果 -->
+  <section class="card" id="resultCard" hidden>
+    <div class="card-head"><h2>核查结果</h2><span id="dataDate" class="sub"></span></div>
+    <div id="resultBody"></div>
+  </section>
+
+  <!-- 报告文档 -->
+  <section class="card" id="docCard" hidden>
+    <div class="card-head"><h2>核查报告</h2><button id="copyMd" class="ghost">复制 Markdown</button></div>
+    <pre id="docMd" class="doc"></pre>
+  </section>
+
+</main>
+
+<div id="toast"><span id="toastMsg"></span></div>
+<script src="app.js"></script>
+</body>
+</html>

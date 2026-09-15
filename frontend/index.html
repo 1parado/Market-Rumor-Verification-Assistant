@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核真 Veritas — 市场传闻核查助手 · 让每一条传闻都有据可查</title>
+<meta name="description" content="基于工具查证的市场传闻核查 Agent：行情 / 公告 / 资讯交叉验证，输出可信、存疑、无法核实三档判断，每条结论附证据与数据来源。">
+<meta property="og:title" content="核真 Veritas — 市场传闻核查助手">
+<meta property="og:description" content="股市传闻，一查便知。每条判断附证据与数据来源，查不到的直说无法核实。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/icon.png">
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="stylesheet" href="landing.css">
+</head>
+<body>
+
+<!-- ================= 导航 ================= -->
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top"><img src="assets/icon.png" alt="核真 Veritas 图标">核真 Veritas <small>Market Rumor Verification</small></a>
+    <div class="nav-links">
+      <a href="#features">特性</a>
+      <a href="#how">工作流程</a>
+      <a href="#verdicts">判断标准</a>
+      <a href="#demo">在线演示</a>
+    </div>
+    <a class="nav-cta" href="https://github.com/1parado/Market-Rumor-Verification-Assistant" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</nav>
+
+<!-- ================= Hero ================= -->
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="pill">同花顺笔试 · 编程题 A · 开源实现</span>
+      <h1>股市传闻，<em>一查便知</em>。<br>每条判断，有据可查。</h1>
+      <p class="sub">核真 Veritas 是一个市场传闻核查助手：收到传闻后自动拆解涉及公司，调用行情、公告、资讯三类工具交叉查证，输出「可信 / 存疑 / 无法核实」的结构化判断——每条结论都附证据与数据来源，查不到的直说无法核实，绝不编造。</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="https://github.com/1parado/Market-Rumor-Verification-Assistant" target="_blank" rel="noopener">查看源码 ↗</a>
+        <a class="btn btn-ghost" href="#demo">在线演示</a>
+      </div>
+      <div class="hero-meta">
+        <span>Python 3 · OpenAI 兼容 API</span>
+        <span>3 类查证工具</span>
+        <span>5 条测试传闻全通过</span>
+      </div>
+    </div>
+
+    <div class="hero-art">
+      <div class="app-frame">
+        <div class="app-bar"><i></i><i></i><i></i><span class="url">核真工作台 · 批次 #A</span></div>
+        <div class="app-body">
+          <div class="mini-row"><span class="mini-dot" style="background:var(--ok)"></span><span class="t">① 恒润科技「大资金进场」</span><span class="mini-tag" style="background:var(--ok-soft);color:var(--ok)">可信</span><span class="mini-bar"><i style="width:96%;background:var(--ok)"></i></span><span class="mini-pct">96%</span></div>
+          <div class="mini-row"><span class="mini-dot" style="background:var(--warn)"></span><span class="t">② 蓝湾生物「临床失败」</span><span class="mini-tag" style="background:var(--warn-soft);color:var(--warn)">存疑</span><span class="mini-bar"><i style="width:92%;background:var(--warn)"></i></span><span class="mini-pct">92%</span></div>
+          <div class="mini-row"><span class="mini-dot" style="background:var(--text-3)"></span><span class="t">④ 睿驰半导体「国资重组」</span><span class="mini-tag" style="background:var(--bg);color:var(--text-3);border:1px solid var(--border)">无法核实</span><span class="mini-bar"><i style="width:12%;background:var(--text-3)"></i></span><span class="mini-pct">12%</span></div>
+          <div class="mini-row"><span class="mini-dot" style="background:var(--accent)"></span><span class="t">③ 计算板块「集体大跌」</span><span class="mini-tag" style="background:var(--accent-soft);color:var(--accent)">待审批</span><span class="mini-bar"><i style="width:38%;background:var(--accent)"></i></span><span class="mini-pct">38%</span></div>
+        </div>
+      </div>
+      <div class="float-chip f1"><i></i>低置信度自动悬起，等人工批准</div>
+      <div class="float-chip f2"><i></i>证据与来源全程可复核</div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= 特性 ================= -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Features</div>
+      <h2>不只给结论，更给可复核的依据</h2>
+      <p>核查助手最容易「一本正经地编造」。核真把纪律写进架构：判断必须来自工具返回的数据，数据查不到就明说。</p>
+    </div>
+    <div class="features">
+      <div class="feature reveal"><div class="fi fi-blue">⊞</div><h3>多工具交叉查证</h3><p>一条传闻涉及几家就查几家：行情 get_quote、公告 get_announcements、资讯 get_news 逐一比对，矛盾点直接指出。</p></div>
+      <div class="feature reveal"><div class="fi fi-green">✓</div><h3>三档判断 + 置信度</h3><p>可信 / 存疑 / 无法核实三档结构化输出，附置信度分值；低于阈值自动悬起，绝不硬编结论。</p></div>
+      <div class="feature reveal"><div class="fi fi-warn">⚖</div><h3>人工审批队列</h3><p>低置信度操作（如接入外部数据源）进入审批队列，显示影响范围与理由，批准 / 拒绝 / 编辑皆可，5 秒内可撤销。</p></div>
+      <div class="feature reveal"><div class="fi fi-blue">◈</div><h3>计划先行执行</h3><p>先拆解传闻生成执行计划，再逐步查证；每步状态（Done / Running / 待审批）实时可见，可拖拽调整。</p></div>
+      <div class="feature reveal"><div class="fi fi-green">◔</div><h3>置信度可视化</h3><p>进度条 + 环形图按状态着色：高置信绿色、中置信橙色、低置信红色，风险一眼可辨。</p></div>
+      <div class="feature reveal"><div class="fi fi-blue">🗂</div><h3>全程留痕可复核</h3><p>完整轨迹回放、工具调用原始输入输出、AI 协作记录导出——每个判断都能追溯到具体数据。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 工作流程 ================= -->
+<section class="section alt" id="how">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">How it works</div>
+      <h2>四步，从传闻到结论</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal"><div class="sn">1</div><h3>拆解识别</h3><p>解析传闻主张，识别涉及的全部公司，拆成可查证的事实点。</p><div class="sm">输入：1 条传闻 → 输出：N 家公司</div></div>
+      <div class="step reveal"><div class="sn">2</div><h3>工具查证</h3><p>逐家调用行情 / 公告 / 资讯工具，交叉比对，记录原始返回。</p><div class="sm">get_quote · get_announcements · get_news</div></div>
+      <div class="step reveal"><div class="sn">3</div><h3>结构化判断</h3><p>输出可信 / 存疑 / 无法核实 + 置信度 + 证据 + 数据来源。</p><div class="sm">判断必须能复核到具体数据</div></div>
+      <div class="step reveal"><div class="sn">4</div><h3>留痕归档</h3><p>核查报告 + 结构化表格 + 完整轨迹，供人工复核与回放。</p><div class="sm">核查报告.md · 传闻核查表.csv</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 判断标准 ================= -->
+<section class="section" id="verdicts">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Verdict system</div>
+      <h2>三档判断，全站一套颜色语言</h2>
+      <p>绿色可信、橙色存疑、灰色无法核实、蓝色待审批——在工作台、报告、看板中含义完全一致。</p>
+    </div>
+    <div class="verdicts">
+      <div class="v-card reveal" style="--vc:var(--ok)"><div class="vh"><span class="vb">可信</span><span class="vn">TRUSTED · 绿</span></div><p>传闻主张与工具查到的数据一致，证据链完整。</p><div class="ve">例：恒润科技涨停 +10.0%，龙虎榜两机构净买入 → 「大资金进场」可信（96%）</div></div>
+      <div class="v-card reveal" style="--vc:var(--warn)"><div class="vh"><span class="vb">存疑</span><span class="vn">SUSPECT · 橙</span></div><p>传闻与官方公告或行情数据直接矛盾，倾向不实但保留判断空间。</p><div class="ve">例：公告「三期临床达到主要终点」vs 传闻「临床失败」→ 存疑（92%）</div></div>
+      <div class="v-card reveal" style="--vc:var(--text-3)"><div class="vh"><span class="vb">无法核实</span><span class="vn">UNKNOWN · 灰</span></div><p>本地数据查不到相关信息。明说查不到，绝不编造——这是底线。</p><div class="ve">例：「国资重组」仅查到业绩预告，无重组信息 → 无法核实（12%）</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 在线演示 ================= -->
+<section class="section alt" id="demo">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Live demo</div>
+      <h2>真实交互的工作台，不只是截图</h2>
+      <p>下方是可操作的工作台：切换视图、处理审批、拖拽侧栏、展开每条传闻的完整依据。</p>
+    </div>
+    <div class="demo-frame reveal">
+      <div class="demo-chrome"><i></i><i></i><i></i><span class="url">核真 Veritas · AI Agent Workbench</span><a class="open" href="demo.html" target="_blank" rel="noopener">新窗口打开 ↗</a></div>
+      <iframe src="demo.html" title="核真工作台在线演示" loading="lazy"></iframe>
+    </div>
+    <p class="demo-note">演示数据来自笔试题内置的 5 条测试传闻与本地工具快照。</p>
+  </div>
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="section cta">
+  <div class="wrap cta-in reveal">
+    <h2>查看完整实现与 AI 协作过程</h2>
+    <p>仓库内含可运行源码、设计思路 README、已知缺陷说明与全程 AI 协作记录导出。</p>
+    <div class="cta-btns">
+      <a class="btn btn-primary" href="https://github.com/1parado/Market-Rumor-Verification-Assistant" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+      <a class="btn btn-ghost" href="#top">回到顶部</a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 页脚 ================= -->
+<footer class="footer">
+  <div class="wrap">
+    <span>核真 Veritas · Market-Rumor-Verification-Assistant</span>
+    <span class="sp"></span>
+    <a href="https://github.com/1parado/Market-Rumor-Verification-Assistant" target="_blank" rel="noopener">GitHub</a>
+    <span class="mono">Built for 同花顺笔试 · 2026</span>
+  </div>
+</footer>
+
+<script>
+/* 滚动渐入（IntersectionObserver，reduced-motion 由 CSS 兜底） */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((en) => {
+    if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+  });
+}, { threshold: 0.12 });
+document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+</script>
+</body>
+</html>

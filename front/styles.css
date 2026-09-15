@@ -1,0 +1,77 @@
+/* 核真 Veritas · 真实接通前端样式 — 安静、克制，参考 frontend/AGENT.md token */
+:root{
+  --bg:#f4f6f9; --surface:#fff; --border:#dfe4eb; --border-soft:#edf0f4;
+  --text:#1f2329; --text-2:#6b7280; --text-3:#9ca3af;
+  --accent:#2f6bed; --ok:#22a06b; --warn:#e8930c; --danger:#e5484d;
+  --radius:8px; --radius-sm:6px;
+}
+[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a21; --border:#262a33; --border-soft:#1d2029;
+  --text:#e6e8ee; --text-2:#9aa1ad; --text-3:#6b7280;
+  --accent:#4d80ff; --ok:#3fb583; --warn:#f0a331; --danger:#f0655a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text)}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600}
+.brand .mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;font-size:12px}
+.top-right{display:flex;align-items:center;gap:10px}
+.ep-input{width:230px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px}
+.icon{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 9px;color:var(--text-2);cursor:pointer}
+.wrap{max-width:880px;margin:0 auto;padding:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-head h2{margin:0;font-size:14px;font-weight:600}
+.card-head .sp{flex:1}
+.sub{font-size:11px;color:var(--text-3)}
+.ghost{margin-left:auto;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;color:var(--text-2);cursor:pointer;font-size:12px}
+.ghost:hover{color:var(--accent);border-color:var(--accent)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-2)}
+.field.span2{grid-column:span 2}
+.field input,.field select{padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field.span2.actions{flex-direction:row;align-items:center;gap:10px}
+.primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer}
+.primary:hover{opacity:.9}
+.primary:disabled{opacity:.5;cursor:not-allowed}
+.status{font-size:12px;color:var(--text-3)}
+.status.ok{color:var(--ok)} .status.fail{color:var(--danger)}
+textarea#rumorText{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px;font-family:inherit;resize:vertical}
+textarea#rumorText:focus{outline:none;border-color:var(--accent)}
+.samples{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sample{font-size:11px;color:var(--text-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 8px;cursor:pointer;background:none}
+.sample:hover{color:var(--accent);border-color:var(--accent)}
+.actions{display:flex;align-items:center;gap:10px;margin-top:10px}
+/* Agent 过程 */
+.proc-log{font-family:"SF Mono",Consolas,monospace;font-size:12px;line-height:1.7;max-height:340px;overflow:auto;background:var(--border-soft);border-radius:var(--radius-sm);padding:10px 12px}
+.prow{color:var(--text-2);white-space:pre-wrap;word-break:break-word}
+.prow.k-start{color:var(--accent);font-weight:500}
+.prow.k-plan{color:var(--text)}
+.prow.k-ev{color:var(--text)}
+.prow.k-judge{color:var(--text)}
+.prow.k-error{color:var(--danger)}
+.prow.k-plan-sub,.prow.k-ev-sub{color:var(--text-3);padding-left:0}
+/* 结果 */
+.final{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.vbadge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-weight:600;font-size:13px}
+.v-credible{background:rgba(34,160,107,.12);color:var(--ok)}
+.v-questionable{background:rgba(232,147,12,.14);color:var(--warn)}
+.v-unverifiable{background:rgba(108,114,128,.16);color:var(--text-2)}
+.basis{color:var(--text-2);margin:0 0 12px;padding:10px;background:var(--border-soft);border-radius:var(--radius-sm);font-size:12.5px;line-height:1.7}
+.verts{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.vert{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px}
+.vhead{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.vhead .vt{flex:1;font-weight:500}
+.tag{font-size:10.5px;padding:1px 7px;border-radius:10px;font-weight:500}
+.tag.supports{background:rgba(34,160,107,.14);color:var(--ok)}
+.tag.refutes{background:rgba(229,72,77,.14);color:var(--danger)}
+.tag.unverifiable{background:rgba(108,114,128,.16);color:var(--text-2)}
+.vreason{color:var(--text-2);font-size:12.5px;margin:4px 0}
+.vref{font-size:11px;color:var(--text-3)}
+.src{font-size:11px;color:var(--text-3);margin-top:4px}
+.src b{color:var(--text-2)}
+.doc{font-family:"SF Mono",Consolas,monospace;font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text-2);background:var(--border-soft);border-radius:var(--radius-sm);padding:12px;margin:0;max-height:400px;overflow:auto}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;font-size:12px;opacity:0;pointer-events:none;transition:.18s;z-index:50}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:680px){.form{grid-template-columns:1fr}.field.span2{grid-column:span 1}.ep-input{width:140px}}
