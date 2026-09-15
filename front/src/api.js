@@ -83,3 +83,11 @@ function parseSSE(block){
   try{ data = data ? JSON.parse(data) : {}; }catch{ /* keep raw */ }
   return [event, data];
 }
+
+/* ===== 飞书接入 ===== */
+export const feishuState = (cfg) => api(cfg, "/api/feishu/state").then(r => r.instances || []);
+export const feishuScanBegin = (cfg, channel = "feishu") => api(cfg, "/api/feishu/scan/begin", JSON_OPTS({ channel }));
+export const feishuScanPoll = (cfg, channel, device_code) => api(cfg, "/api/feishu/scan/poll", JSON_OPTS({ channel, device_code }));
+export const feishuSaveInstance = (cfg, payload) => api(cfg, "/api/feishu/instances", JSON_OPTS(payload));
+export const feishuStopInstance = (cfg, id) => api(cfg, `/api/feishu/instances/${id}/stop`, { method: "POST" });
+export const feishuDeleteInstance = (cfg, id) => api(cfg, `/api/feishu/instances/${id}`, { method: "DELETE" });

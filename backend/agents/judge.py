@@ -25,8 +25,8 @@ _VERIFY_TOOL = {
                             "claim_id": {"type": "string"},
                             "verdict": {"type": "string", "enum": ["supports", "refutes", "unverifiable"]},
                             "reasoning": {"type": "string"},
-                            "source": {"type": "string", "enum": ["quote", "announcement", "news"]},
-                            "source_ref": {"type": "string"},
+                            "source": {"type": "string", "enum": ["quote", "announcement", "news", "web"]},
+                            "source_ref": {"type": "string", "description": "出处：本地来源填日期/片段，网页来源填完整 URL"},
                             "confidence": {"type": "integer", "description": "该条判断的置信度 0-100"},
                         },
                         "required": ["claim_id", "verdict", "reasoning"],
@@ -61,7 +61,8 @@ def judge_rumor(state: CheckState) -> dict:
         "3. verdict：supports（快照支持断言）/ refutes（快照与断言相反）/ unverifiable（快照无相关信息）。\n"
         "4. final_verdict：credible（全部 supports）/ questionable（部分支持部分反驳，或与快照有出入）"
         "/ unverifiable（相关数据缺失）。\n"
-        "5. reasoning 必须引用快照中的具体字段值或公告/资讯原文片段；source 与 source_ref 指明出处。\n"
+        "5. reasoning 必须引用快照中的具体字段值或公告/资讯原文片段；source 与 source_ref 指明出处；"
+        "source=web 时 source_ref 必须填写该网页的完整 URL。\n"
         "6. confidence 为 0-100 整数，表示判断把握程度：多个独立来源一致→高分（80-95）；"
         "单一来源→中等（60-75）；数据缺失或来源相互矛盾→低分（10-40）。每条断言和整体各给一个。\n"
     )
@@ -85,20 +86,42 @@ def judge_rumor(state: CheckState) -> dict:
 
     args = resp.tool_calls[0].arguments
     verifications = [Verification(**v) for v in args.get("verifications", [])]
-    sources = sorted({v.source_ref for v in verifications if v.source_ref})
+    sources = sorted({v.source_ref for v in verifications if v.source_ref and v.source != "web"})
     confidence = args.get("confidence")
     try:
         confidence = max(0, min(100, int(confidence))) if confidence is not None else None
     except (TypeError, ValueError):
         confidence = None
+    web_sources = _collect_web_sources(evidence)
     result = _build_result(
         state, claims, verifications, args.get("final_verdict", "unverifiable"), args.get("basis", ""), sources,
-        confidence,
+        confidence, web_sources,
     )
     return {"verifications": verifications, "result": result}
 
 
-def _build_result(state, claims, verifications, final_verdict, basis, sources, confidence=None) -> RumorCheckResult:
+def _collect_web_sources(evidence: list[Evidence]) -> list:
+    """从证据中提取搜索带回的网页（按 URL 去重，保持出现顺序）。"""
+    from schemas import WebSource
+
+    seen: set[str] = set()
+    out = []
+    for e in evidence:
+        if e.source != "web":
+            continue
+        url = e.payload.get("url", "")
+        if url and url not in seen:
+            seen.add(url)
+            out.append(WebSource(
+                title=e.payload.get("title", url),
+                url=url,
+                snippet=e.payload.get("snippet", ""),
+                query=e.payload.get("query", ""),
+            ))
+    return out
+
+
+def _build_result(state, claims, verifications, final_verdict, basis, sources, confidence=None, web_sources=None) -> RumorCheckResult:
     return RumorCheckResult(
         rumor_text=state["rumor_text"],
         companies=state.get("companies", []),
@@ -108,6 +131,7 @@ def _build_result(state, claims, verifications, final_verdict, basis, sources, c
         basis=basis,
         confidence=confidence,
         sources=sources,
+        web_sources=web_sources or [],
         data_date=DATA_DATE,
     )
 
@@ -130,4 +154,6 @@ def _format_snapshot(evidence: list[Evidence]) -> str:
                 lines.append(f"  - 公告：{e.payload.get('text')}")
             elif e.source == "news":
                 lines.append(f"  - 资讯：{e.payload.get('text')}")
+            elif e.source == "web":
+                lines.append(f"  - 网页：{e.payload.get('title')}（URL: {e.payload.get('url')}）：{e.payload.get('snippet')}")
     return "\n".join(lines) or "（无数据）"

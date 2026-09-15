@@ -17,6 +17,9 @@ from llm import tokens
 from pipeline import build_graph, run_check
 from schemas import LLMConfig, LLMTestResult, RumorCheckResult
 import storage
+import feishu
+from feishu import oauth as feishu_oauth
+from feishu.models import ScanBeginRequest, ScanPollRequest, FeishuInstanceSave
 
 app = FastAPI(title="核真 Veritas 后端", version="0.2.0")
 
@@ -58,6 +61,8 @@ def on_startup() -> None:
     stale = storage.fail_stale_runs()
     if stale:
         print(f"[startup] 已将 {stale} 条中断遗留的 running 记录标记为失败")
+    # 加载已保存的飞书实例并建立 WebSocket 长连接
+    feishu.get_bridge().load_and_start_all()
 
 
 @app.get("/api/health")
@@ -299,6 +304,13 @@ def _result_md(r: dict) -> str:
             + (f"（来源：{ref}）" if ref else "")
         )
     lines.append("")
+    if r.get("web_sources"):
+        lines.append("## 参考网页")
+        for i, w in enumerate(r["web_sources"], 1):
+            lines.append(f"{i}. [{w.get('title', w.get('url', ''))}]({w.get('url', '')})")
+            if w.get("snippet"):
+                lines.append(f"   > {w['snippet']}")
+        lines.append("")
     if r.get("sources"):
         lines.append("## 数据来源")
         lines += [f"- {s}" for s in r["sources"]]
@@ -310,6 +322,83 @@ def _result_md(r: dict) -> str:
 
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+# ===== 飞书接入 =====
+
+
+def _feishu_public(inst: dict) -> dict:
+    """抹掉 app_secret 后给前端（与 bridge.state 一致，路由层再保险一次）。"""
+    inst.pop("app_secret", None)
+    return inst
+
+
+@app.post("/api/feishu/scan/begin")
+def feishu_scan_begin(req: ScanBeginRequest) -> dict:
+    """发起扫码：返回二维码 data URL + device_code。"""
+    r = feishu_oauth.scan_begin(req.channel)
+    return {
+        "device_code": r.device_code,
+        "verification_uri": r.verification_uri,
+        "interval_sec": r.interval_sec,
+        "expire_in_sec": r.expire_in_sec,
+        "platform": r.platform,
+        "error": r.error,
+    }
+
+
+@app.post("/api/feishu/scan/poll")
+def feishu_scan_poll(req: ScanPollRequest) -> dict:
+    """轮询扫码状态：completed 时返回 app_id/app_secret。"""
+    r = feishu_oauth.scan_poll(req.channel, req.device_code)
+    return {
+        "status": r.status,
+        "app_id": r.app_id,
+        "app_secret": r.app_secret,
+        "owner_open_id": r.owner_open_id,
+        "platform": r.platform,
+        "error": r.error,
+        "slow_down": r.slow_down,
+        "interval_sec": r.interval_sec,
+    }
+
+
+@app.get("/api/feishu/instances")
+def feishu_list_instances() -> dict:
+    """已保存实例列表（含运行状态）。"""
+    return feishu.get_bridge().state()
+
+
+@app.get("/api/feishu/state")
+def feishu_state() -> dict:
+    """IM 接入面板加载用：实例列表 + 运行状态。"""
+    return feishu.get_bridge().state()
+
+
+@app.post("/api/feishu/instances")
+def feishu_save_instance(req: FeishuInstanceSave) -> dict:
+    """保存扫码所得实例并立即建立长连接。"""
+    if not req.app_id or not req.app_secret:
+        raise HTTPException(status_code=400, detail="app_id / app_secret 不能为空")
+    inst = feishu.get_bridge().save_instance(
+        req.name, req.channel, req.app_id, req.app_secret,
+        req.owner_open_id, req.model_config_id, req.enabled,
+    )
+    return {"ok": True, "instance": _feishu_public(inst)}
+
+
+@app.delete("/api/feishu/instances/{instance_id}")
+def feishu_delete_instance(instance_id: int) -> dict:
+    if not feishu.get_bridge().delete_instance(instance_id):
+        raise HTTPException(status_code=404, detail="实例不存在")
+    return {"ok": True}
+
+
+@app.post("/api/feishu/instances/{instance_id}/stop")
+def feishu_stop_instance(instance_id: int) -> dict:
+    """停用实例（标志位过滤，连接不立即断开）。"""
+    feishu.get_bridge().stop_instance(instance_id)
+    return {"ok": True}
 
 
 if __name__ == "__main__":

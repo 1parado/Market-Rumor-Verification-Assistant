@@ -47,9 +47,17 @@ const verifications = computed(() =>
     const [cls, label] = T_MAP[v.verdict] || T_MAP.unverifiable;
     const c = claimMap.value[v.claim_id];
     const conf = v.confidence ?? ({ supports: 85, refutes: 80, unverifiable: 30 }[v.verdict] ?? 50);
-    return { cls, label, text: c ? c.text : "断言" + v.claim_id, reasoning: v.reasoning, source: v.source, source_ref: v.source_ref, conf };
+    const isWeb = v.source === "web" && (v.source_ref || "").startsWith("http");
+    return { cls, label, claim_id: v.claim_id, text: c ? c.text : "断言" + v.claim_id, reasoning: v.reasoning, source: v.source,
+             source_ref: isWeb ? "" : v.source_ref, url: isWeb ? v.source_ref : null, conf };
   })
 );
+
+/* 搜索带回的参考网页 */
+const webSources = computed(() => result.value?.web_sources || []);
+function hostOf(u){
+  try{ return new URL(u).hostname.replace(/^www\./, ""); }catch{ return u; }
+}
 
 /* 置信度：judge 输出优先；缺失时按各断言判定估算 */
 const confidence = computed(() => {
@@ -65,20 +73,49 @@ const confDash = computed(() => {
   const len = (Math.max(0, Math.min(100, confidence.value.value)) / 100) * CONF_C;
   return { len, rest: CONF_C - len };
 });
-const confColor = computed(() => {
-  if(!confidence.value) return "var(--text-3)";
-  const v = confidence.value.value;
-  return v >= 75 ? "#16a06a" : v >= 45 ? "#f08c00" : "#e5484d";
-});
+const confColor = computed(() => confColorOf(confidence.value?.value ?? 0));
+/* 置信度三色区间：高绿 / 中黄 / 低红 */
+function confColorOf(v){
+  return v >= 75 ? "#16a06a" : v >= 45 ? "#eab308" : "#e5484d";
+}
 
-/* 断言判定统计 → 底部状态条 */
+/* 断言行展开状态 + Agent 过程折叠 + 证据快照行 */
+const openClaims = ref({});
+const showProc = ref(false);
+const showDoc = ref(false);
+const statClaims = ref(0);
+const statEv = ref(0);
+const evidenceRows = ref([]);
+/* 反驳计数（元信息行警示用） */
 const verdictStats = computed(() => {
   const vs = result.value?.verifications || [];
-  if(!vs.length) return null;
   const c = { supports: 0, refutes: 0, unverifiable: 0 };
   vs.forEach(v => { c[v.verdict] = (c[v.verdict] || 0) + 1; });
-  return c;
+  return vs.length ? c : null;
 });
+const procSummary = computed(() =>
+  `规划 ${statClaims.value} 断言 · 取证 ${statEv.value} 条 · ${procStatus.value || "未开始"}`
+);
+function toggleClaim(i){ openClaims.value[i] = !openClaims.value[i]; }
+function claimType(v){ return claimMap.value[v.claim_id]?.type || "claim"; }
+function resetExplore(){
+  openClaims.value = {};
+  showProc.value = false;
+  showDoc.value = false;
+  evidenceRows.value = [];
+  statClaims.value = 0;
+  statEv.value = 0;
+}
+const EV_LABEL = { quote: "quote", announcement: "公告", news: "news", web: "web" };
+function formatEvidence(list){
+  return (list || []).map(e => {
+    const p = e.payload || {};
+    if(e.source === "quote")
+      return { label: "quote", date: p.date || "", text: `价格 ${p.price} · 涨跌幅 ${p.change_pct}%` };
+    const m = /^(\d{4}-\d{2}-\d{2})\s*(.*)$/.exec(p.text || "");
+    return { label: EV_LABEL[e.source] || e.source, date: m ? m[1] : "", text: m ? m[2] : (e.source === "web" ? p.title : (p.text || "")) };
+  });
+}
 
 /* token 用量：done 事件 / 历史记录 */
 const usage = ref(null);
@@ -161,6 +198,7 @@ function onStart(){
   if(!text){ toast("请输入传闻"); return; }
   saveCfg({ protocol: cfg.value.protocol, apiBase: cfg.value.apiBase, apiKey: cfg.value.apiKey, model: cfg.value.model });
   cacheChat();
+  resetExplore();
   view.value = "work";
   procLines.value = [];
   procStatus.value = "核查中…";
@@ -202,13 +240,20 @@ function handleEvent(event, data){
 function renderNode(node, out){
   if(!out) return;
   if(node === "planner"){
+    statClaims.value = (out.claims || []).length;
     const cs = (out.companies || []).map(c => c.name).join("、") || "无";
     pushLine("plan", `▶ 规划：识别公司 [${cs}]，分解 ${(out.claims || []).length} 条断言`);
     (out.claims || []).forEach(c => pushLine("plan-sub", `    · [${c.type}] ${c.text}（${c.company}）${c.expected ? "· 期望：" + c.expected : ""}`));
   }else if(node === "evidence"){
-    pushLine("ev", `▶ 取证：${(out.evidence || []).length} 条证据`);
-    (out.evidence || []).forEach(e => {
-      const r = e.source === "quote" ? `价格=${e.payload.price} 涨跌幅=${e.payload.change_pct}%` : (e.payload.text || "").slice(0, 50);
+    const list = out.evidence || [];
+    const web = list.filter(e => e.source === "web");
+    statEv.value = list.length;
+    evidenceRows.value = formatEvidence(list);
+    pushLine("ev", `▶ 取证：${list.length} 条证据${web.length ? `（含 ${web.length} 条网页）` : ""}`);
+    list.forEach(e => {
+      const r = e.source === "quote" ? `价格=${e.payload.price} 涨跌幅=${e.payload.change_pct}%`
+        : e.source === "web" ? `${e.payload.title}`
+        : (e.payload.text || "").slice(0, 50);
       pushLine("ev-sub", `    · ${e.source}(${e.company}) → ${r}`);
     });
   }else if(node === "judge"){
@@ -250,15 +295,19 @@ function onNewCheck(){
 
 /* ---------- 历史回放 ---------- */
 
-/* URL ?run=N 直接回放（可分享/刷新恢复） */
+/* URL ?run=N 直接回放（可分享/刷新恢复）；?theme=dark|light 指定主题 */
 onMounted(() => {
-  const n = parseInt(new URLSearchParams(location.search).get("run"), 10);
+  const sp = new URLSearchParams(location.search);
+  const theme = sp.get("theme");
+  if(theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+  const n = parseInt(sp.get("run"), 10);
   if(n) onOpenRun(n);
 });
 
 async function onOpenRun(id){
   try{
     cacheChat();
+    resetExplore();
     const run = await getRun(cfg.value, id);
     showHistory.value = false;
     rumorText.value = run.rumor_text;
@@ -332,83 +381,90 @@ async function onOpenRun(id){
       <p class="home-hint">核查前请先在 <button class="linklike" @click="showSettings = true">设置</button> 中完成模型配置与连通测试</p>
     </section>
 
-    <!-- 工作视图 -->
+    <!-- 工作视图：结论导向 -->
     <section v-else>
-      <div class="card">
-        <div class="card-head"><h2>传闻</h2><span v-if="runId" class="sub">#{{ runId }}</span><span class="sp"></span><button class="ghost" @click="onNewCheck">＋ 新建核查</button></div>
-        <p class="rumor-echo">{{ rumorText }}</p>
-      </div>
-
-      <div class="card">
-        <div class="card-head"><h2>Agent 过程</h2><span class="sub">{{ procStatus }}</span></div>
-        <div class="proc-log">
-          <div v-for="(l, i) in procLines" :key="i" class="prow" :class="'k-' + l.cls">{{ l.text }}</div>
-        </div>
-      </div>
-
-      <div v-if="result" class="card">
-        <div class="card-head">
-          <h2>核查结果</h2>
-          <span class="sub">{{ result.data_date ? "数据日期 " + result.data_date : "" }}</span>
-          <span class="sp"></span>
-          <span v-if="usage" class="tok-chip" title="本次核查全部 LLM 调用消耗（含规划/取证/裁决）">
-            ⚡ {{ fmtNum(usage.total_tokens) }} tokens<span v-if="usage.calls"> · {{ usage.calls }} 次调用</span>（入 {{ fmtNum(usage.prompt_tokens) }} / 出 {{ fmtNum(usage.completion_tokens) }}）
-          </span>
-        </div>
-        <div class="final">
+      <div class="card verdict-card">
+        <div class="vc-top">
           <span class="vbadge" :class="finalVerdict.cls">
-            <svg v-if="finalVerdict.cls === 'v-questionable'" class="ico vico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg v-if="finalVerdict.cls !== 'v-credible'" class="ico vico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span v-else class="vdot"></span>
             {{ finalVerdict.label }}
           </span>
+          <span v-if="runId" class="sub">#{{ runId }}</span>
+          <span class="sp"></span>
+          <span v-if="usage" class="tok-pill" title="本次核查全部 LLM 调用消耗（含规划/取证/裁决）">
+            <span class="tok-num">{{ fmtNum(usage.total_tokens) }}</span> tokens
+            <span class="tok-detail">入 {{ fmtNum(usage.prompt_tokens) }} · 出 {{ fmtNum(usage.completion_tokens) }}<span v-if="usage.calls"> · {{ usage.calls }} 次</span></span>
+          </span>
+          <button class="ghost" @click="onNewCheck">＋ 新建核查</button>
           <div v-if="confidence" class="conf-donut" :title="confidence.estimated ? '置信度（按断言判定估算）' : '置信度（模型评估）'">
             <svg viewBox="0 0 72 72" width="72" height="72">
               <defs>
-                <linearGradient id="confGrad" x1="0" y1="0" x2="1" y2="1">
+                <linearGradient :id="'confGrad' + (runId || 'x')" x1="0" y1="0" x2="1" y2="1">
                   <stop offset="0%" :stop-color="confColor"/>
-                  <stop offset="100%" :stop-color="confColor" stop-opacity=".45"/>
+                  <stop offset="100%" :stop-color="confColor" stop-opacity=".4"/>
                 </linearGradient>
               </defs>
-              <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border-soft)" stroke-width="5.5"/>
-              <circle cx="36" cy="36" r="30" fill="none" stroke="url(#confGrad)" stroke-width="5.5" stroke-linecap="round"
+              <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border-soft)" stroke-width="5"/>
+              <circle cx="36" cy="36" r="30" fill="none" :stroke="`url(#confGrad${runId || 'x'})`" stroke-width="5" stroke-linecap="round"
                       :stroke-dasharray="`${confDash.len} ${confDash.rest}`" transform="rotate(-90 36 36)"/>
               <text x="36" y="41" text-anchor="middle" class="conf-num">{{ confidence.value }}<tspan class="conf-pct">%</tspan></text>
             </svg>
             <span class="conf-cap">置信度{{ confidence.estimated ? "（估）" : "" }}</span>
           </div>
         </div>
-        <p class="basis md" v-html="renderMd(result.basis)"></p>
-        <div v-if="verifications.length" class="verts">
-          <div v-for="(v, i) in verifications" :key="i" class="vert">
-            <div class="vhead"><span class="tag" :class="v.cls">{{ v.label }}</span><span class="vt">{{ v.text }}</span>
-              <span class="sp"></span>
-              <span class="conf-pill" :title="'置信度 ' + v.conf + '/100'">
-                <span class="conf-bar"><span class="conf-fill" :style="{ width: v.conf + '%', background: v.conf >= 75 ? 'var(--ok)' : v.conf >= 45 ? 'var(--warn)' : 'var(--danger)' }"></span></span>
-                <span class="conf-val">{{ v.conf }}%</span>
-              </span>
-            </div>
-            <div class="vreason md" v-html="renderMd(v.reasoning)"></div>
-            <div class="vref">{{ v.source ? "来源：" + v.source + (v.source_ref ? " · " + v.source_ref : "") : "" }}</div>
-          </div>
-        </div>
-        <div v-if="verdictStats" class="verdict-strip" :class="{ warn: verdictStats.refutes > 0 }">
-          <div class="vs-bar">
-            <span class="vs-seg ok" :style="{ flex: verdictStats.supports }" v-show="verdictStats.supports"></span>
-            <span class="vs-seg bad" :style="{ flex: verdictStats.refutes }" v-show="verdictStats.refutes"></span>
-            <span class="vs-seg unk" :style="{ flex: verdictStats.unverifiable }" v-show="verdictStats.unverifiable"></span>
-          </div>
-          <div class="vs-legend">
-            <span class="ok"><i></i>支持 {{ verdictStats.supports }}</span>
-            <span class="bad"><i></i>反驳 {{ verdictStats.refutes }}</span>
-            <span class="unk"><i></i>无法核实 {{ verdictStats.unverifiable }}</span>
-          </div>
-        </div>
-        <div v-if="result.sources && result.sources.length" class="src"><b>引用来源：</b>{{ result.sources.join(" · ") }}</div>
-      </div>
 
-      <div v-if="docMd" class="card">
-        <div class="card-head"><h2>核查报告</h2><button class="ghost" @click="onCopyMd">复制 Markdown</button></div>
-        <div class="doc md" v-html="renderMd(docMd)"></div>
+        <p class="vc-rumor">「{{ rumorText }}」</p>
+        <p v-if="result && result.basis" class="vc-summary md" v-html="renderMd(result.basis)"></p>
+
+        <template v-if="result">
+          <div v-if="verifications.length" class="vc-section">
+            <div class="vc-sec-head">断言核查 <span class="sub">{{ verifications.length }} 条 · 点击展开核查理由</span></div>
+            <div v-for="(v, i) in verifications" :key="i" class="claim-row" :class="{ open: openClaims[i] }">
+              <button class="claim-head" @click="toggleClaim(i)">
+                <span class="mtype">{{ claimType(v) }}</span>
+                <span class="claim-text">{{ v.text }}</span>
+                <span class="claim-conf" :style="{ color: confColorOf(v.conf) }">{{ v.conf }}%</span>
+                <span class="tag" :class="v.cls">{{ v.label }}</span>
+                <svg class="chev ico" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <div v-show="openClaims[i]" class="claim-body">
+                <div class="vreason md" v-html="renderMd(v.reasoning)"></div>
+                <div class="vref">
+                  <template v-if="v.url">来源：<a class="vlink" :href="v.url" target="_blank" rel="noopener">{{ hostOf(v.url) }} ↗</a></template>
+                  <template v-else>{{ v.source ? "来源：" + v.source + (v.source_ref ? " · " + v.source_ref : "") : "" }}</template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="evidenceRows.length" class="vc-section">
+            <div class="vc-sec-head">数据快照证据 <span class="sub">{{ evidenceRows.length }} 条</span></div>
+            <div v-for="(e, i) in evidenceRows" :key="i" class="ev-row">
+              <span class="mtype">{{ e.label }}</span>
+              <span class="ev-date">{{ e.date }}</span>
+              <span class="ev-text">{{ e.text }}</span>
+            </div>
+          </div>
+
+          <div v-if="webSources.length" class="web-sources">
+            <div class="vc-sec-head">参考网页 <span class="sub">来自真实网络搜索</span></div>
+            <a v-for="(w, i) in webSources" :key="w.url" class="ws-item" :href="w.url" target="_blank" rel="noopener" :title="w.title">
+              <span class="ws-idx">{{ i + 1 }}</span>
+              <span class="ws-main">
+                <span class="ws-title">{{ w.title }}</span>
+                <span class="ws-meta">{{ hostOf(w.url) }}{{ w.query ? " · 查询：" + w.query : "" }}</span>
+                <span v-if="w.snippet" class="ws-snip">{{ w.snippet }}</span>
+              </span>
+            </a>
+          </div>
+
+          <div class="vc-meta">
+            <span v-if="result.data_date">数据日期 {{ result.data_date }}</span>
+            <span v-if="verdictStats && verdictStats.refutes > 0" class="meta-warn">⚠ {{ verdictStats.refutes }} 条断言被反驳</span>
+          </div>
+        </template>
+        <div v-else class="sub vc-waiting">{{ procStatus }}</div>
       </div>
 
       <div v-if="runId" class="card">
@@ -426,11 +482,34 @@ async function onOpenRun(id){
           <button class="primary" type="submit" :disabled="chatSending || !chatInput.trim()">{{ chatSending ? "发送中…" : "发送" }}</button>
         </form>
       </div>
+
+      <div class="card panel-card">
+        <button class="panel-head" @click="showProc = !showProc">
+          <h2>Agent 过程</h2>
+          <span class="sub">{{ procSummary }}</span>
+          <span class="sp"></span>
+          <svg class="chev ico" :class="{ rot: showProc }" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div v-show="showProc" class="proc-log">
+          <div v-for="(l, i) in procLines" :key="i" class="prow" :class="'k-' + l.cls">{{ l.text }}</div>
+        </div>
+      </div>
+
+      <div v-if="docMd" class="card panel-card">
+        <button class="panel-head" @click="showDoc = !showDoc">
+          <h2>核查报告</h2>
+          <span class="sub">Markdown · 点击{{ showDoc ? "收起" : "展开" }}</span>
+          <span class="sp"></span>
+          <button class="ghost" @click.stop="onCopyMd">复制 Markdown</button>
+          <svg class="chev ico" :class="{ rot: showDoc }" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div v-show="showDoc" class="doc md" v-html="renderMd(docMd)"></div>
+      </div>
     </section>
   </main>
 
   <SettingsModal :open="showSettings" :cfg="cfg" @close="showSettings = false" @toast="toast" />
-  <ImModal :open="showIm" @close="showIm = false" />
+  <ImModal :open="showIm" :cfg="cfg" @close="showIm = false" @toast="toast" />
   <HistoryModal :open="showHistory" :cfg="cfg" @close="showHistory = false" @open-run="onOpenRun" @toast="toast" />
 
   <div id="toast"><span id="toastMsg"></span></div>

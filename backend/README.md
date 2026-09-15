@@ -20,6 +20,11 @@ uv run uvicorn app:app --reload --port 8000
 | GET | /api/rumors | — | `{rumors:[{id,text}]}`（5 条） |
 | POST | /api/llm/test | `{llm:LLMConfig}` | `LLMTestResult` |
 | POST | /api/rumor/check | `{rumor_text, llm:LLMConfig}` | `RumorCheckResult` |
+| POST | /api/rumor/check/stream | 同上 | SSE：start(含 run_id)/step/node/done/error |
+| POST | /api/llm/models | `{llm:LLMConfig}` | `{ok, models:[str]}` |
+| GET/POST/DELETE | /api/configs | 模型配置 CRUD（SQLite） | — |
+| GET/DELETE | /api/runs, /api/runs/{id} | 运行历史/详情（事件+会话回放） | — |
+| POST | /api/runs/{id}/chat | `{message, llm}` | 基于核查结论的追问（落库） |
 
 `LLMConfig = {base_url, api_key, protocol: "openai_chat"|"openai_responses"|"anthropic", model, temperature?}`
 
@@ -49,4 +54,6 @@ curl -X POST http://localhost:8000/api/rumor/check \
 - **连通测试**：返回 `200 + ok=false`（语义化），与 PRD §5.2 的 4xx/5xx 表述略有偏差。
 - **安全**：无鉴权、CORS 全开（MVP，前端自带 Key，上线前需收紧 allow_origins）。
 - **确定性**：`temperature=0` 仍不保证 LLM 输出完全可复现。
-- **暂未接前端**：MVP 阶段后端自测，前端 `frontend/` 接通为下一迭代。
+- **websockets<16**：langgraph_sdk 兼容上限，`uv add` 重解析时勿升级（16.x 删除了 `websockets/client.py`）。
+- **真实网络搜索**：依赖网络可达性，搜索引擎被屏蔽时自动降级纯本地数据；可设 `TAVILY_API_KEY` 提质。
+- **单脚本入口**：题目要求的 `编程题A-传闻核查.py`（仓库根目录）为自包含精简版，与本后端同构但独立运行。

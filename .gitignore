@@ -7,10 +7,10 @@
 *.p12
 secrets*.json
 config.private.*
-编程题A-传闻核查.py
 
 # ===== WorkBuddy 本地数据（会话记忆/内部笔记，不对外）=====
 .workbuddy/
+.zcode/
 
 # ===== 运行产物 / 临时输出 =====
 __pycache__/

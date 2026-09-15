@@ -63,6 +63,22 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id);
+CREATE TABLE IF NOT EXISTS feishu_instances (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  name               TEXT NOT NULL,
+  channel            TEXT NOT NULL DEFAULT 'feishu',   -- feishu | lark
+  app_id             TEXT NOT NULL,
+  app_secret         TEXT NOT NULL,
+  encrypt_key        TEXT NOT NULL DEFAULT '',          -- webhook 可选，本次预留
+  verification_token TEXT NOT NULL DEFAULT '',          -- webhook 可选，本次预留
+  enabled            INTEGER NOT NULL DEFAULT 1,
+  status             TEXT NOT NULL DEFAULT 'configured', -- configured | connected | error | stopped
+  last_error         TEXT NOT NULL DEFAULT '',
+  owner_open_id      TEXT NOT NULL DEFAULT '',
+  model_config_id    INTEGER,                           -- 关联 model_configs.id，IM 触发核查用
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL
+);
 """
 
 
@@ -262,3 +278,90 @@ def add_message(run_id: int, role: str, content: str) -> dict:
         conn.commit()
         row = conn.execute("SELECT * FROM messages WHERE id = ?", (cur.lastrowid,)).fetchone()
         return dict(row)
+
+
+# ===== 飞书实例 =====
+# secrets（app_id/app_secret）与 model_configs.api_key 同等处理：存 SQLite（veritas.db 已 gitignore）。
+# 给前端的响应在 app.py 路由层抹掉 app_secret，storage 层返回完整行供后端内部使用。
+
+def upsert_feishu_instance(
+    name: str,
+    channel: str,
+    app_id: str,
+    app_secret: str,
+    owner_open_id: str = "",
+    model_config_id: int | None = None,
+    enabled: bool = True,
+    instance_id: int | None = None,
+) -> dict:
+    """新建或更新飞书实例。instance_id 为空时插入，否则按 id 更新。返回该行。"""
+    now = _now()
+    with _lock, closing(_conn()) as conn:
+        if instance_id:
+            conn.execute(
+                """UPDATE feishu_instances SET name=?, channel=?, app_id=?, app_secret=?,
+                       owner_open_id=?, model_config_id=?, enabled=?, updated_at=?
+                   WHERE id=?""",
+                (name, channel, app_id, app_secret, owner_open_id, model_config_id,
+                 1 if enabled else 0, now, instance_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO feishu_instances
+                   (name, channel, app_id, app_secret, owner_open_id, model_config_id,
+                    enabled, status, created_at, updated_at)
+                   VALUES(?,?,?,?,?,?,?, 'configured', ?, ?)""",
+                (name, channel, app_id, app_secret, owner_open_id, model_config_id,
+                 1 if enabled else 0, now, now),
+            )
+        conn.commit()
+        row = conn.execute("SELECT * FROM feishu_instances WHERE id = ?", (instance_id,)).fetchone()
+        if row is None:
+            row = conn.execute(
+                "SELECT * FROM feishu_instances WHERE rowid = last_insert_rowid()"
+            ).fetchone()
+        return dict(row)
+
+
+def list_feishu_instances() -> list[dict]:
+    with closing(_conn()) as conn:
+        rows = conn.execute("SELECT * FROM feishu_instances ORDER BY id DESC").fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_feishu_instance(instance_id: int) -> dict | None:
+    with closing(_conn()) as conn:
+        row = conn.execute("SELECT * FROM feishu_instances WHERE id = ?", (instance_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def delete_feishu_instance(instance_id: int) -> bool:
+    with _lock, closing(_conn()) as conn:
+        cur = conn.execute("DELETE FROM feishu_instances WHERE id = ?", (instance_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def update_feishu_status(instance_id: int, status: str, last_error: str = "") -> None:
+    with _lock, closing(_conn()) as conn:
+        conn.execute(
+            "UPDATE feishu_instances SET status=?, last_error=?, updated_at=? WHERE id=?",
+            (status, last_error, _now(), instance_id),
+        )
+        conn.commit()
+
+
+def set_feishu_enabled(instance_id: int, enabled: bool) -> None:
+    with _lock, closing(_conn()) as conn:
+        conn.execute(
+            "UPDATE feishu_instances SET enabled=?, status=?, updated_at=? WHERE id=?",
+            (1 if enabled else 0, "connected" if enabled else "stopped", _now(), instance_id),
+        )
+        conn.commit()
+
+
+def get_model_config(config_id: int) -> dict | None:
+    """读 model_configs 一行（供 IM 触发核查时构造 LLMConfig）。"""
+    with closing(_conn()) as conn:
+        row = conn.execute("SELECT * FROM model_configs WHERE id = ?", (config_id,)).fetchone()
+        return dict(row) if row else None

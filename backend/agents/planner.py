@@ -32,6 +32,11 @@ _PLAN_TOOL = {
                             "company": {"type": "string"},
                             "type": {"type": "string", "enum": ["price", "event", "spread"]},
                             "expected": {"type": "string"},
+                            "queries": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "为核查该断言设计的 1-2 条网络搜索查询（公司名/代码 + 关键事实 + 相关时间）",
+                            },
                         },
                         "required": ["id", "text", "company", "type"],
                     },
@@ -54,7 +59,9 @@ def plan_rumor(state: CheckState) -> dict:
         "候选公司清单（用于消歧，只从中选取，禁止编造清单外的公司）：\n"
         f"{candidates}\n\n"
         "断言类型：price（价格/涨跌/数值）、event（事件/公告类事实）、spread（传播/资金/情绪类不可直接核实）。\n"
-        "要求：每条断言绑定一家公司；传闻隐含的多家公司都要识别；不要补充传闻未提及的公司。"
+        "要求：每条断言绑定一家公司；传闻隐含的多家公司都要识别；不要补充传闻未提及的公司。\n"
+        "queries：为每条断言设计 1-2 条用于搜索引擎的查询词，格式为「公司名/代码 + 关键事实 + 时间」，"
+        "供后续真实网络搜索取证使用。"
     )
     messages = [
         {"role": "system", "content": system},

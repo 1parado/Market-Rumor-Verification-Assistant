@@ -1,14 +1,23 @@
 /* 核真 Veritas · 真实接通前端样式 — 安静、克制，参考 frontend/AGENT.md token */
+/* 注意：主题 token 只在此处定义（视觉升级层的值已合并进来），文件后部禁止再用 :root/[data-theme] 覆盖 token，否则破坏暗色 */
 :root{
-  --bg:#f4f6f9; --surface:#fff; --border:#dfe4eb; --border-soft:#edf0f4;
+  --bg:#f2f5fa; --bg-alt:#e9eef6; --surface:#fff; --card-tint:#f7f9fc;
+  --border:#e2e8f2; --border-soft:#eef1f7;
   --text:#1f2329; --text-2:#6b7280; --text-3:#9ca3af;
-  --accent:#2f6bed; --ok:#22a06b; --warn:#e8930c; --danger:#e5484d;
-  --radius:8px; --radius-sm:6px;
+  --accent:#2f6bed; --accent-soft:rgba(43,108,240,.10);
+  --ok:#16a06a; --warn:#f08c00; --danger:#e5484d;
+  --radius:12px; --radius-sm:6px;
+  --shadow-card:0 1px 2px rgba(23,43,99,.05),0 8px 24px rgba(23,43,99,.06);
+  --shadow-card-hover:0 2px 6px rgba(23,43,99,.06),0 12px 32px rgba(23,43,99,.10);
 }
 [data-theme="dark"]{
-  --bg:#0f1115; --surface:#171a21; --border:#262a33; --border-soft:#1d2029;
+  --bg:#0f1115; --bg-alt:#1a1e28; --surface:#171a21; --card-tint:#1d2029;
+  --border:#262a33; --border-soft:#1d2029;
   --text:#e6e8ee; --text-2:#9aa1ad; --text-3:#6b7280;
-  --accent:#4d80ff; --ok:#3fb583; --warn:#f0a331; --danger:#f0655a;
+  --accent:#4d80ff; --accent-soft:rgba(77,128,255,.16);
+  --ok:#3fb583; --warn:#f0a331; --danger:#f0655a;
+  --shadow-card:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.25);
+  --shadow-card-hover:0 2px 6px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text)}
@@ -94,6 +103,17 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
 .conf-bar{display:inline-block;width:64px;height:5px;border-radius:3px;background:var(--border-soft);overflow:hidden}
 .conf-fill{display:block;height:100%;border-radius:3px;transition:width .4s ease}
 .conf-val{font-size:11px;color:var(--text-2);min-width:32px;text-align:right}
+/* token 用量胶囊（首屏明显展示） */
+.tok-pill{
+  display:inline-flex;align-items:center;gap:6px;flex:none;
+  border:1px solid var(--border);border-radius:999px;
+  background:var(--surface);padding:5px 13px;
+  font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;
+  box-shadow:0 1px 3px rgba(23,43,99,.05);
+  font-variant-numeric:tabular-nums;
+}
+.tok-num{font-size:13px;font-weight:800;color:var(--text)}
+.tok-detail{font-size:10.5px;font-weight:700;color:var(--text-2)}
 /* token 用量 chip */
 .tok-chip{font-size:11px;color:var(--text-2);border:1px solid var(--border);border-radius:12px;padding:2px 9px;white-space:nowrap}
 .primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer}
@@ -242,26 +262,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHe
    反驳状态条 —— 冷色调基底 + 橙色警示点缀
    ============================================================ */
 
-/* ---- 1. 色板与阴影 token（覆盖上文的安静版） ---- */
-:root{
-  --bg:#f2f5fa;                       /* 极浅蓝灰底 */
-  --bg-alt:#e9eef6;
-  --surface:#ffffff;                  /* 卡片纯白浮起 */
-  --border:#e2e8f2;
-  --border-soft:#eef1f7;
-  --accent-soft:rgba(43,108,240,.10);
-  --ok:#16a06a;                       /* 完成绿：更饱和 */
-  --warn:#f08c00;                     /* 存疑橙：警示点缀 */
-  --danger:#e5484d;
-  --shadow-card:0 1px 2px rgba(23,43,99,.05),0 8px 24px rgba(23,43,99,.06);
-  --shadow-card-hover:0 2px 6px rgba(23,43,99,.06),0 12px 32px rgba(23,43,99,.10);
-  --radius:12px;
-}
-[data-theme="dark"]{
-  --bg:#0f1115; --bg-alt:#1a1e28;
-  --shadow-card:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.25);
-  --shadow-card-hover:0 2px 6px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
-}
+/* ---- 1. 色板与阴影：token 已合并进文件顶部主题块（含暗色），此处不再覆盖 ---- */
 
 body{line-height:1.68}
 
@@ -333,11 +334,11 @@ body{line-height:1.68}
 /* ---- 5. 依据块：冷灰底 + 蓝色引导线 ---- */
 .basis{
   margin:0 0 14px;padding:12px 16px;
-  background:#f7f9fc;border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  background:var(--card-tint);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;
   font-size:13px;line-height:1.8;color:var(--text-2);
 }
 [data-theme="dark"] .basis{background:var(--border-soft)}
-.rumor-echo{background:#f7f9fc;border-left:3px solid var(--border);font-size:13.5px;padding:10px 14px}
+.rumor-echo{background:var(--card-tint);border-left:3px solid var(--border);font-size:13.5px;padding:10px 14px}
 [data-theme="dark"] .rumor-echo{background:var(--border-soft)}
 
 /* 断言卡：轻微层次 */
@@ -374,6 +375,89 @@ body{line-height:1.68}
 .vs-legend .unk i{background:#a8b1c0}
 .vs-legend .bad{color:var(--danger);font-weight:600}
 
+/* ---- 9. 参考网页（Perplexity 式来源带回） ---- */
+.web-sources{margin-bottom:12px}
+.ws-head{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.ws-item{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:7px;text-decoration:none;transition:border-color .16s ease,box-shadow .16s ease}
+.ws-item:hover{border-color:var(--accent);box-shadow:0 2px 10px rgba(23,43,99,.07)}
+.ws-idx{flex:none;width:20px;height:20px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;display:grid;place-items:center;margin-top:1px}
+.ws-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ws-title{font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-item:hover .ws-title{color:var(--accent)}
+.ws-meta{font-size:10.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-snip{font-size:11.5px;color:var(--text-2);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vlink{color:var(--accent);text-decoration:none;font-weight:500}
+.vlink:hover{text-decoration:underline}
+
+/* ============================================================
+   结论导向改版：首屏即结论 / 一行式断言 / 证据三段式 / 折叠过程
+   ============================================================ */
+
+/* 结论卡首屏 */
+.verdict-card{padding:22px 24px}
+.vc-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.vc-top .sp{flex:1}
+.vc-top .ghost{margin-left:0}
+.vc-rumor{margin:0 0 8px;font-size:15.5px;font-weight:600;line-height:1.65;color:var(--text)}
+.vc-summary{margin:0 0 18px;font-size:12.5px;line-height:1.75;color:var(--text-2)}
+.vc-waiting{padding:10px 0 2px;font-size:12.5px}
+
+/* 分区：细分隔线 + 小节标题（替代粗竖条/大引用块） */
+.vc-section{border-top:1px solid var(--border-soft);padding-top:16px;margin-bottom:18px}
+.vc-sec-head{font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:baseline;gap:8px}
+.vc-sec-head .sub{font-weight:400}
+
+/* 等宽类型标签（event/price/spread/quote/公告/news/web 两列对齐） */
+.mtype{
+  flex:none;min-width:76px;text-align:center;
+  font-family:"SF Mono",Consolas,"Courier New",monospace;
+  font-size:10.5px;color:var(--text-2);
+  background:var(--border-soft);border-radius:5px;padding:2px 8px;
+  white-space:nowrap;
+}
+
+/* 一行式断言：点击展开 */
+.claim-row{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface);transition:border-color .16s ease}
+.claim-row:hover{border-color:var(--text-3)}
+.claim-row.open{border-color:var(--accent)}
+.claim-head{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:10px 12px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.claim-text{flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.claim-row.open .claim-text{white-space:normal}
+.claim-conf{flex:none;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.chev{flex:none;width:14px!important;height:14px!important;color:var(--text-3);transition:transform .18s ease}
+.chev.rot{transform:rotate(180deg)}
+.claim-body{padding:2px 14px 12px;border-top:1px dashed var(--border-soft);margin-top:-1px}
+.claim-body .vreason{margin:10px 0 6px}
+.claim-body .vref{padding-left:2px}
+
+/* 证据三段式：类型 → 日期 → 内容（等宽数字） */
+.ev-row{display:flex;align-items:baseline;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border-soft);font-size:12.5px}
+.ev-row:last-child{border-bottom:0}
+.ev-row:hover{background:var(--card-tint)}
+[data-theme="dark"] .ev-row:hover{background:var(--border-soft)}
+.ev-date{flex:none;min-width:56px;color:var(--text-3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.ev-text{flex:1;min-width:0;color:var(--text-2);line-height:1.6}
+
+/* 底部元信息：降级为灰色小字 */
+.vc-meta{margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.vc-meta .meta-warn{color:var(--warn);font-weight:600}
+
+/* 折叠面板（Agent 过程 / 报告） */
+.panel-card{padding:16px 20px}
+.panel-head{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;cursor:pointer;font:inherit;text-align:left}
+.panel-head h2{margin:0}
+.panel-head .ghost{margin-left:0}
+.panel-head .chev{margin-left:2px}
+.panel-card .proc-log,.panel-card .doc{margin-top:14px}
+.doc{max-height:420px;overflow:auto}
+
+/* 数字统一等宽（置信度环 / 徽章内数字） */
+.conf-num,.vbadge,.tag,.claim-conf{font-variant-numeric:tabular-nums}
+
+/* 无法核实 → 橙色警示（与截图一致） */
+.v-unverifiable{background:rgba(240,140,0,.13);color:#d97a00}
+[data-theme="dark"] .v-unverifiable{color:#ffb04d}
+
 /* ---- 8. 会话气泡：Agent 白底描边（浮起），用户蓝渐变 ---- */
 .chat-log{gap:12px}
 .chat-bubble{line-height:1.7;padding:9px 13px}
@@ -387,3 +471,15 @@ body{line-height:1.68}
 .tag.st-done{background:rgba(22,160,106,.13);color:#0e8a52}
 .tag.st-error{background:rgba(229,72,77,.13);color:var(--danger)}
 .tag.st-running{background:rgba(43,108,240,.12);color:var(--accent)}
+
+/* ---- 暗色主题：饱和色文字提亮（硬编码亮色值的补偿） ---- */
+[data-theme="dark"] .v-credible{color:#3ecf94}
+[data-theme="dark"] .v-questionable{color:#ffb04d}
+[data-theme="dark"] .v-unverifiable{color:#ffb04d}
+[data-theme="dark"] .tag.supports{color:#3ecf94}
+[data-theme="dark"] .tag.refutes{color:#ff8085}
+[data-theme="dark"] .tag.st-done{color:#3ecf94}
+[data-theme="dark"] .tag.st-error{color:#ff8085}
+[data-theme="dark"] .tag.st-running{color:#7ba3ff}
+[data-theme="dark"] .vs-seg.unk{background:#4a5160}
+[data-theme="dark"] .vs-legend .unk i{background:#4a5160}

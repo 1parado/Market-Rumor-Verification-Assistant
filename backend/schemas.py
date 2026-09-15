@@ -60,9 +60,10 @@ class Claim(BaseModel):
     company: str
     type: ClaimType
     expected: str | None = None
+    queries: list[str] = Field(default_factory=list)  # planner 为该断言设计的网络搜索词
 
 
-EvidenceSource = Literal["quote", "announcement", "news"]
+EvidenceSource = Literal["quote", "announcement", "news", "web"]
 
 
 class Evidence(BaseModel):
@@ -86,6 +87,15 @@ class Verification(BaseModel):
 FinalVerdict = Literal["credible", "questionable", "unverifiable"]
 
 
+class WebSource(BaseModel):
+    """取证时实际查询到的网页（Perplexity 式来源带回）。"""
+
+    title: str
+    url: str
+    snippet: str = ""
+    query: str = ""
+
+
 class RumorCheckResult(BaseModel):
     """核查最终结构化输出，对应 PRD §5.4 响应。"""
 
@@ -97,6 +107,7 @@ class RumorCheckResult(BaseModel):
     basis: str = ""
     confidence: int | None = None  # 0-100，整体置信度
     sources: list[str] = Field(default_factory=list)
+    web_sources: list[WebSource] = Field(default_factory=list)  # 搜索带回的网页
     data_date: str | None = None
 
 
