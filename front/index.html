@@ -1,119 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>核真 Veritas · 传闻核查</title>
-<link rel="icon" type="image/png" href="../frontend/assets/icon.png">
-<link rel="stylesheet" href="styles.css">
-</head>
-<body>
-
-<header class="topbar">
-  <div class="tb-left">
-    <button id="imBtn" class="icon" title="IM 接入（飞书）"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
-  </div>
-  <div class="tb-center">核真</div>
-  <div class="tb-right">
-    <button id="themeBtn" class="icon" title="切换主题">◐</button>
-    <button id="settingsBtn" class="icon" title="设置"><svg class="ico" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
-  </div>
-</header>
-
-<main class="wrap">
-
-  <!-- ===== 首页：居中开始核查 ===== -->
-  <section id="homeSec" class="home">
-    <h1 class="home-title">准备开始核查?</h1>
-    <form id="homeForm" class="pill-form">
-      <span class="pill-ico" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
-      <input id="rumorText" placeholder="输入传闻 / 粘贴文本" autocomplete="off">
-      <button type="button" id="pasteBtn" class="pill-act" title="粘贴剪贴板"><svg class="ico" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></button>
-      <button type="submit" id="goBtn" class="pill-go" title="开始核查"><svg class="ico" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
-    </form>
-    <div id="samples" class="samples"></div>
-    <button type="button" id="loadRumors" class="home-link">＋ 载入样例传闻</button>
-    <p class="home-hint">核查前请先在 <button type="button" class="linklike" id="openSettings2">设置</button> 中完成模型配置与连通测试</p>
-    <div id="homeStatus" class="status" style="margin-top:10px"></div>
-  </section>
-
-  <!-- ===== 工作视图：核查过程与结果 ===== -->
-  <section id="workSec" hidden>
-    <div class="card">
-      <div class="card-head"><h2>传闻</h2><button id="newCheck" class="ghost">＋ 新建核查</button></div>
-      <p id="rumorEcho" class="rumor-echo"></p>
-    </div>
-
-    <div class="card" id="procCard">
-      <div class="card-head"><h2>Agent 过程</h2><span id="procStatus" class="sub"></span></div>
-      <div id="procLog" class="proc-log"></div>
-    </div>
-
-    <div class="card" id="resultCard" hidden>
-      <div class="card-head"><h2>核查结果</h2><span id="dataDate" class="sub"></span></div>
-      <div id="resultBody"></div>
-    </div>
-
-    <div class="card" id="docCard" hidden>
-      <div class="card-head"><h2>核查报告</h2><button id="copyMd" class="ghost">复制 Markdown</button></div>
-      <pre id="docMd" class="doc"></pre>
-    </div>
-  </section>
-
-</main>
-
-<!-- ===== 设置弹窗：模型配置 ===== -->
-<div class="modal-mask" id="settingsModal" hidden>
-  <div class="modal" role="dialog" aria-labelledby="settingsTitle">
-    <div class="card-head">
-      <h2 id="settingsTitle">设置 · 模型配置</h2>
-      <span class="sub">自带 URL / Key，仅存本地</span>
-      <span class="sp"></span>
-      <button id="closeSettings" class="icon" title="关闭">✕</button>
-    </div>
-    <div class="form">
-      <label class="field"><span>协议</span>
-        <select id="protocol">
-          <option value="openai_chat">OpenAI Chat Completions</option>
-          <option value="openai_responses">OpenAI Responses</option>
-          <option value="anthropic">Anthropic Messages</option>
-        </select>
-      </label>
-      <label class="field"><span>后端地址</span><input id="baseUrl" value="http://localhost:8000"></label>
-      <label class="field span2"><span>Base URL</span><input id="apiBase" placeholder="https://api.openai.com/v1"></label>
-      <label class="field"><span>模型</span><input id="model" placeholder="gpt-4o"></label>
-      <label class="field"><span>API Key</span><input id="apiKey" type="password" placeholder="sk-..."></label>
-      <label class="field"><span>Temperature</span><input id="temperature" type="number" value="0" step="0.1" min="0" max="2"></label>
-      <div class="field span2 actions">
-        <button id="testBtn" class="primary">连通测试</button>
-        <span id="testStatus" class="status"></span>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== IM 弹窗：飞书接入预留 ===== -->
-<div class="modal-mask" id="imModal" hidden>
-  <div class="modal" role="dialog" aria-labelledby="imTitle">
-    <div class="card-head">
-      <h2 id="imTitle">IM 接入</h2>
-      <span class="sp"></span>
-      <button id="closeIm" class="icon" title="关闭">✕</button>
-    </div>
-    <div class="im-body">
-      <div class="im-badge">飞书 · Lark</div>
-      <p>IM 功能入口已预留，后续将接入飞书：</p>
-      <ul>
-        <li>群内 <b>@核真机器人</b> 直接发起传闻核查</li>
-        <li>核查完成后自动推送<b>结论卡片</b>到群聊</li>
-        <li>低置信度结果转私聊<b>人工审批</b></li>
-      </ul>
-      <p class="sub">当前版本：敬请期待</p>
-    </div>
-  </div>
-</div>
-
-<div id="toast"><span id="toastMsg"></span></div>
-<script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>核真 Veritas · 传闻核查</title>
+    <link rel="icon" type="image/png" href="/icon.png" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>
